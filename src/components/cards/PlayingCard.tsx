@@ -29,11 +29,11 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   onClick,
   className,
 }) => {
-  // Dimensions based on size
+  // Dimensions based on size optimized for mobile-first touch layout
   const sizeClasses = {
-    sm: 'w-12 h-16 text-xs rounded-md',
-    md: 'w-16 h-24 sm:w-20 sm:h-28 text-sm rounded-lg',
-    lg: 'w-20 h-28 sm:w-24 sm:h-36 text-base rounded-xl',
+    sm: 'w-10 h-14 min-w-[40px] sm:w-12 sm:h-16 text-[10px] sm:text-xs rounded-md',
+    md: 'w-14 h-20 min-w-[56px] sm:w-20 sm:h-28 text-xs sm:text-sm rounded-lg',
+    lg: 'w-18 h-26 min-w-[72px] sm:w-24 sm:h-36 text-sm sm:text-base rounded-xl',
   }[size];
 
   if (faceDown || !card) {

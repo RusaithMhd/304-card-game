@@ -39,21 +39,25 @@ export const TrumpSelectorModal: React.FC<TrumpSelectorModalProps> = ({
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="fixed inset-x-4 top-20 z-50 max-w-lg mx-auto bg-slate-900/95 backdrop-blur-xl border border-amber-500/40 rounded-2xl p-5 shadow-2xl text-center text-slate-100"
+      initial={{ opacity: 0, y: 100 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 100 }}
+      className="fixed inset-x-0 bottom-0 top-auto sm:top-20 sm:bottom-auto z-50 max-w-lg mx-auto bg-slate-900/98 backdrop-blur-xl border-t sm:border border-amber-500/40 rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 shadow-2xl text-center text-slate-100 max-h-[85vh] overflow-y-auto"
     >
+      {/* Mobile Top Drag Indicator */}
+      <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-3 sm:hidden" />
+
       <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
-        <span className="text-amber-400 font-bold text-xs uppercase tracking-widest">Select Trump Indicator Card</span>
-        <span className="text-xs text-slate-400">Winning Bid: {winningBid}</span>
+        <span className="text-amber-400 font-extrabold text-xs uppercase tracking-widest">Select Trump Card</span>
+        <span className="text-[10px] sm:text-xs text-slate-400 font-semibold bg-slate-800/80 px-2 py-0.5 rounded-full">Winning Bid: {winningBid}</span>
       </div>
 
-      <p className="text-xs text-slate-300 mb-4">
-        Select one physical card from your hand to serve as the Trump Indicator. Its suit will become the Trump suit.
+      <p className="text-xs text-slate-300 mb-3 leading-tight">
+        Tap a physical card from your hand to serve as the Trump Indicator.
       </p>
 
       {/* Cards Selection Row */}
-      <div className="flex items-center justify-center gap-2 mb-5 overflow-x-auto p-2 bg-slate-950/70 rounded-2xl border border-slate-800">
+      <div className="flex items-center justify-center gap-2 mb-4 overflow-x-auto p-2.5 bg-slate-950/70 rounded-2xl border border-slate-800/80">
         {playerCards.map((card) => {
           const isSelected = selectedCard?.id === card.id;
 
@@ -61,7 +65,7 @@ export const TrumpSelectorModal: React.FC<TrumpSelectorModalProps> = ({
             <div
               key={card.id}
               onClick={() => setSelectedCardId(card.id)}
-              className={`cursor-pointer transition-all transform hover:-translate-y-1 ${
+              className={`cursor-pointer transition-all transform touch-manipulation min-w-[50px] ${
                 isSelected ? 'scale-105 ring-4 ring-amber-400 rounded-xl shadow-lg' : 'opacity-80 hover:opacity-100'
               }`}
             >
@@ -72,16 +76,16 @@ export const TrumpSelectorModal: React.FC<TrumpSelectorModalProps> = ({
       </div>
 
       {selectedCard && (
-        <div className="mb-4 text-xs font-semibold text-amber-300">
+        <div className="mb-3 text-xs font-semibold text-amber-300">
           Selected: <span className="font-bold text-white">{selectedCard.rank} of {SUIT_NAMES[selectedCard.suit]} ({SUIT_SYMBOLS[selectedCard.suit]})</span>
         </div>
       )}
 
       {/* Mode Selection: Open vs Closed Trump (Default CLOSED) */}
-      <div className="flex items-center bg-slate-950/80 rounded-xl p-1 mb-5 border border-slate-800">
+      <div className="flex items-center bg-slate-950/80 rounded-xl p-1 mb-4 border border-slate-800">
         <button
           onClick={() => setMode('CLOSED')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+          className={`flex-1 py-2.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer min-h-[44px] ${
             mode === 'CLOSED' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -89,7 +93,7 @@ export const TrumpSelectorModal: React.FC<TrumpSelectorModalProps> = ({
         </button>
         <button
           onClick={() => setMode('OPEN')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+          className={`flex-1 py-2.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer min-h-[44px] ${
             mode === 'OPEN' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
@@ -100,7 +104,7 @@ export const TrumpSelectorModal: React.FC<TrumpSelectorModalProps> = ({
       <button
         disabled={!selectedCard}
         onClick={() => selectedCard && onSelectTrumpCard(selectedCard.id, mode)}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer disabled:opacity-50"
+        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer disabled:opacity-50 active:scale-95 min-h-[44px]"
       >
         CONFIRM TRUMP CARD ({selectedCard ? `${selectedCard.rank}${SUIT_SYMBOLS[selectedCard.suit]}` : ''} - {mode})
       </button>

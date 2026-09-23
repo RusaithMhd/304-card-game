@@ -423,14 +423,14 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         throw new Error('Unauthorized to view Trump card');
       }
 
-      nextState.trumpRevealed = true;
-      nextState.lastActionMessage = `${nextState.players[action.seat].name} pressed SEE TRUMP! Trump is ${SUIT_SYMBOLS[nextState.trumpSuit!]} (${nextState.trumpCard?.rank || ''}).`;
+      revealTrumpState(nextState);
+      nextState.lastActionMessage = `${nextState.players[action.seat].name} revealed TRUMP! Trump is ${SUIT_SYMBOLS[nextState.trumpSuit!]} (${nextState.trumpCard?.rank || ''}).`;
       break;
     }
 
     case 'REVEAL_TRUMP': {
       if (!nextState.trumpRevealed && nextState.trumpSuit) {
-        nextState.trumpRevealed = true;
+        revealTrumpState(nextState);
         nextState.lastActionMessage = `Trump revealed! Trump suit is ${SUIT_SYMBOLS[nextState.trumpSuit]}.`;
       }
       break;
@@ -541,9 +541,14 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
             throw new Error(`Illegal card play! Must follow lead suit ${SUIT_SYMBOLS[leadSuit]}`);
           }
         } else {
-          nextState.pendingVoidChoiceSeat = action.seat;
-          nextState.lastActionMessage = `${player.name} has no ${SUIT_SYMBOLS[leadSuit]}. Choose USE TRUMP or FLIP A CARD.`;
-          return nextState;
+          // Void in lead suit:
+          // In CLOSED TRUMP mode (trump not revealed), prompt player to choose USE TRUMP or FLIP A CARD.
+          // In OPEN TRUMP mode, any played card is played face-up directly!
+          if (!nextState.trumpRevealed && nextState.trumpMode === 'CLOSED') {
+            nextState.pendingVoidChoiceSeat = action.seat;
+            nextState.lastActionMessage = `${player.name} has no ${SUIT_SYMBOLS[leadSuit]}. Choose USE TRUMP or FLIP A CARD.`;
+            return nextState;
+          }
         }
       }
 
@@ -625,16 +630,7 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
 
       // Rule 26: 250+ bid forces reveal of trump at end of Trick 1
       if (nextState.currentTrick.trickNumber === 1 && (nextState.bidding.currentHighBid >= 250 || nextState.isPartnerCloseCaps)) {
-        nextState.trumpRevealed = true;
-        if (nextState.trumpCard && nextState.bidding.bidderSeat !== null) {
-          // Return indicator to maker's hand for trick 2+
-          const maker = nextState.players[nextState.bidding.bidderSeat];
-          if (!maker.cards.some((c) => c.id === nextState.trumpCard!.id)) {
-            maker.cards.push(nextState.trumpCard);
-            maker.cards = sortPlayerHand(maker.cards);
-            maker.cardCount = maker.cards.length;
-          }
-        }
+        revealTrumpState(nextState);
       }
 
       if (nextState.currentTrick.trickNumber < 8 && !nextState.capsTrickLost) {
@@ -765,6 +761,7 @@ function checkAndResolveTrick(state: GameEngineState) {
         actualTrump.isRevealed = true;
       }
       state.trumpRevealed = true;
+      state.trumpMode = 'OPEN';
     } else if (state.currentTrick.flippedGambleUsed) {
       const flippedCard = state.currentTrick.cardsPlayed.find((pc) => pc.isFlippedGamble);
       if (flippedCard) {
@@ -803,6 +800,29 @@ function checkAndResolveTrick(state: GameEngineState) {
     }
 
     state.currentTurnSeat = nextSeat;
+  }
+}
+
+export function revealTrumpState(nextState: GameEngineState) {
+  if (nextState.trumpRevealed && nextState.trumpMode === 'OPEN') return;
+
+  nextState.trumpRevealed = true;
+  nextState.trumpMode = 'OPEN';
+
+  // Check if physical trumpCard indicator exists and hasn't been played into a trick
+  if (nextState.trumpCard && nextState.bidding.bidderSeat !== null) {
+    const isPlayedInTrick =
+      nextState.tricks.some((t) => t.cardsPlayed.some((pc) => pc.card.id === nextState.trumpCard!.id)) ||
+      (nextState.currentTrick?.cardsPlayed.some((pc) => pc.card.id === nextState.trumpCard!.id) ?? false);
+
+    if (!isPlayedInTrick) {
+      const maker = nextState.players[nextState.bidding.bidderSeat];
+      if (!maker.cards.some((c) => c.id === nextState.trumpCard!.id)) {
+        maker.cards.push(nextState.trumpCard);
+        maker.cards = sortPlayerHand(maker.cards);
+        maker.cardCount = maker.cards.length;
+      }
+    }
   }
 }
 

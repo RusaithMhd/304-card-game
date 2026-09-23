@@ -43,6 +43,8 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [isHonestConfirmOpen, setIsHonestConfirmOpen] = useState(false);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [proposedTrumpMode, setProposedTrumpMode] = useState<'OPEN' | 'CLOSED'>('CLOSED');
 
   if (!gameState) return null;
@@ -82,126 +84,57 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const isPartnerHighBidderIn8Card = gameState.status === 'EIGHT_CARD_BIDDING' && gameState.bidding.bidderSeat !== null && (gameState.bidding.bidderSeat % 2 === localPlayer.team);
 
   return (
-    <div className="relative w-full min-h-screen bg-slate-950 flex flex-col items-center justify-between overflow-hidden select-none">
+    <div className="relative w-full h-[100dvh] max-w-full bg-slate-950 flex flex-col items-center justify-between overflow-hidden select-none">
       {/* Background Ambient Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#153327_0%,#08120d_70%,#020604_100%)] opacity-90 pointer-events-none" />
 
       {/* Floating Reactions Layer */}
       <FloatingReactions reactions={activeReactions} getRelativeSeatPosition={getRelativeSeatPosition} />
 
-      {/* 1. TOP HEADER NAVIGATION & SCOREBOARD */}
-      <header className="relative z-30 w-full px-4 py-3 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-2">
-        {/* Left: Back Button, Room Title, & Token Counter */}
-        <div className="flex items-center gap-3">
+      {/* 1. TOP HEADER NAVIGATION & SCOREBOARD (COMPACT 1-ROW MOBILE FIRST) */}
+      <header className="relative z-30 w-full px-2.5 sm:px-4 py-2 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-1.5">
+        {/* Left: Back Button & Compact Score */}
+        <div className="flex items-center gap-2">
           <button
-            onClick={onBackToLobby}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-            title="Leave Game"
+            onClick={() => setIsLeaveConfirmOpen(true)}
+            className="p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
+            title="Leave Match"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-amber-400 tracking-widest uppercase block">304 MATCH</span>
-              <span className="px-2 py-0.2 rounded-full bg-emerald-500/10 border border-emerald-400/40 text-emerald-300 font-extrabold text-[9px] flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                <span>SRI LANKAN 304 RULES</span>
-              </span>
-            </div>
-            <span className="text-xs font-bold text-slate-200">ROOM {gameState.roomId}</span>
+          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-full shadow-md">
+            <span className="text-[10px] font-black text-amber-400">A {gameState.teamAScore}</span>
+            <span className="text-[10px] text-slate-500 font-bold">:</span>
+            <span className="text-[10px] font-black text-emerald-400">{gameState.teamBScore} B</span>
+          </div>
+
+          {/* Tokens indicator compact */}
+          <div
+            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            className="hidden xs:flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-300 cursor-pointer"
+          >
+            <Coins className="w-3 h-3 text-amber-400" />
+            <span>A:{gameState.teamATokens} | B:{gameState.teamBTokens}</span>
           </div>
         </div>
 
-        {/* Center: Team Score & Token Transfer Display */}
-        <div className="flex items-center gap-3">
-          {/* Card Points Pill */}
-          <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-4 py-1.5 rounded-full shadow-lg">
-            <div className="text-right">
-              <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-tighter block">TEAM A (PTS)</span>
-              <span className="text-sm font-black text-amber-400">{gameState.teamAScore}</span>
-            </div>
+        {/* Center: Match Details Drawer Trigger */}
+        <button
+          onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+          className="px-2.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-amber-400 font-extrabold text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-850"
+        >
+          <span>304 {gameState.roomId}</span>
+          <span className="text-[9px] text-slate-400">▼</span>
+        </button>
 
-            <span className="text-slate-600 font-bold text-xs">:</span>
-
-            <div className="text-left">
-              <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-tighter block">TEAM B (PTS)</span>
-              <span className="text-sm font-black text-emerald-400">{gameState.teamBScore}</span>
-            </div>
-          </div>
-
-          {/* Tokens Balance Pill */}
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/40 px-3 py-1.5 rounded-full shadow-lg text-xs font-bold text-amber-300">
-            <Coins className="w-4 h-4 text-amber-400" />
-            <span>TOKENS: A ({gameState.teamATokens}) vs B ({gameState.teamBTokens})</span>
-          </div>
-
-          {/* Partner Close Caps Badge */}
-          {gameState.isPartnerCloseCaps && (
-            <span className="px-3 py-1.5 rounded-full bg-purple-500/20 border border-purple-400/50 text-purple-300 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
-              <Sparkles className="w-3.5 h-3.5 fill-current text-yellow-300" />
-              <span>PARTNER CLOSE CAPS</span>
-            </span>
-          )}
-
-          {/* Honest Game Status Badge */}
-          {gameState.honestGame && (
-            <span className="px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
-              <Flame className="w-3.5 h-3.5 fill-current text-amber-400 animate-pulse" />
-              <span>HONEST GAME (250+)</span>
-            </span>
-          )}
-
-          {/* Caps Claim Button */}
-          {gameState.status === 'PLAYING' && !gameState.capsDeclared && (
-            <button
-              onClick={() => dispatchAction({ type: 'DECLARE_CAPS', seat: localSeat })}
-              className="px-3 py-1.5 rounded-full bg-purple-600 text-white font-black text-xs shadow-lg hover:brightness-110 flex items-center gap-1 cursor-pointer"
-              title="Declare Caps (Claim all remaining tricks)"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>DECLARE CAPS</span>
-            </button>
-          )}
-
-          {/* Spoilt Trumps Button */}
-          {gameState.status === 'PLAYING' && !gameState.isSpoiltTrumpsDeclared && (
-            <button
-              onClick={() => {
-                try {
-                  dispatchAction({ type: 'DECLARE_SPOILT_TRUMPS', seat: localSeat });
-                } catch (e: any) {
-                  alert(e.message || 'Cannot declare Spoilt Trumps');
-                }
-              }}
-              className="px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
-              title="Declare Spoilt Trumps (Opponents hold 0 trumps)"
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-              <span>SPOILT TRUMPS</span>
-            </button>
-          )}
-
-          {/* PCC Challenge Button */}
-          {isPccAvailable && (
-            <button
-              onClick={() => dispatchAction({ type: 'DECLARE_PCC', seat: localSeat })}
-              className="px-3.5 py-1.5 rounded-full bg-gradient-to-r from-rose-600 to-amber-500 text-slate-950 font-black text-xs shadow-lg hover:brightness-110 flex items-center gap-1 animate-bounce cursor-pointer"
-              title="Declare PCC (304 Cap Challenge)"
-            >
-              <Flame className="w-3.5 h-3.5 fill-current" />
-              <span>DECLARE PCC</span>
-            </button>
-          )}
-        </div>
-
-        {/* Right: Voice Controls, Sound, Bot AI, & Chat Controls */}
-        <div className="flex items-center gap-2">
+        {/* Right: Quick Action Controls */}
+        <div className="flex items-center gap-1">
           <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
 
           <button
             onClick={() => toggleBotMode()}
-            className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
               isBotModeEnabled
                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                 : 'bg-slate-900 border-slate-800 text-slate-400'
@@ -209,19 +142,19 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             title="Toggle Bot Players"
           >
             <Bot className="w-4 h-4" />
-            <span className="hidden sm:inline">BOTS {isBotModeEnabled ? 'ON' : 'OFF'}</span>
+            <span className="hidden md:inline">BOTS {isBotModeEnabled ? 'ON' : 'OFF'}</span>
           </button>
 
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
 
           <button
             onClick={() => toggleChat()}
-            className="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="relative p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
           >
             <MessageSquare className="w-4 h-4" />
             {unreadCount > 0 && (
@@ -233,38 +166,119 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         </div>
       </header>
 
-      {/* 2. POLISHED 2D GAME FELT TABLE AREA */}
-      <main className="relative z-10 flex-1 w-full max-w-5xl px-2 py-4 flex flex-col items-center justify-center">
+      {/* EXPANDABLE MATCH DETAILS POPDOWN DRAWER */}
+      <AnimatePresence>
+        {isDrawerOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="relative z-25 w-full bg-slate-900/95 border-b border-amber-500/30 px-4 py-3 shadow-xl flex flex-wrap items-center justify-between gap-2 text-xs"
+          >
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/40 text-emerald-300 font-extrabold text-[9px] flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span>SRI LANKAN 304 RULES</span>
+              </span>
+              <span className="text-slate-400 font-semibold text-[10px]">
+                Tokens Balance: Team A ({gameState.teamATokens}) vs Team B ({gameState.teamBTokens})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Partner Close Caps Badge */}
+              {gameState.isPartnerCloseCaps && (
+                <span className="px-2.5 py-1 rounded-full bg-purple-500/20 border border-purple-400/50 text-purple-300 font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-md">
+                  <Sparkles className="w-3 h-3 fill-current text-yellow-300" />
+                  <span>PARTNER CLOSE CAPS</span>
+                </span>
+              )}
+
+              {/* Honest Game Status Badge */}
+              {gameState.honestGame && (
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black text-[9px] uppercase tracking-wider flex items-center gap-1 shadow-md">
+                  <Flame className="w-3 h-3 fill-current text-amber-400 animate-pulse" />
+                  <span>HONEST GAME (250+)</span>
+                </span>
+              )}
+
+              {/* Caps Claim Button */}
+              {gameState.status === 'PLAYING' && !gameState.capsDeclared && (
+                <button
+                  onClick={() => dispatchAction({ type: 'DECLARE_CAPS', seat: localSeat })}
+                  className="px-2.5 py-1 rounded-full bg-purple-600 text-white font-black text-[10px] shadow-lg hover:brightness-110 flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>DECLARE CAPS</span>
+                </button>
+              )}
+
+              {/* Spoilt Trumps Button */}
+              {gameState.status === 'PLAYING' && !gameState.isSpoiltTrumpsDeclared && (
+                <button
+                  onClick={() => {
+                    try {
+                      dispatchAction({ type: 'DECLARE_SPOILT_TRUMPS', seat: localSeat });
+                    } catch (e: any) {
+                      alert(e.message || 'Cannot declare Spoilt Trumps');
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] border border-slate-700 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <ShieldAlert className="w-3 h-3 text-rose-400" />
+                  <span>SPOILT TRUMPS</span>
+                </button>
+              )}
+
+              {/* PCC Challenge Button */}
+              {isPccAvailable && (
+                <button
+                  onClick={() => dispatchAction({ type: 'DECLARE_PCC', seat: localSeat })}
+                  className="px-3 py-1 rounded-full bg-gradient-to-r from-rose-600 to-amber-500 text-slate-950 font-black text-[10px] shadow-lg hover:brightness-110 flex items-center gap-1 cursor-pointer"
+                >
+                  <Flame className="w-3 h-3 fill-current" />
+                  <span>DECLARE PCC</span>
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. POLISHED 2D GAME FELT TABLE AREA (FITS PERFECTLY IN REMAINING VIEWPORT) */}
+      <main className="relative z-10 flex-1 w-full max-w-4xl px-2 my-1 flex items-center justify-center overflow-hidden">
         <div
           onClick={() => {
             if (gameState.status === 'TRICK_COMPLETE') {
               dispatchAction({ type: 'NEXT_TRICK' });
             }
           }}
-          className={`relative w-full h-[62vh] max-h-[540px] rounded-[40px] sm:rounded-[80px] table-felt-pattern table-felt-border flex items-center justify-center ${
+          className={`relative w-full h-full max-h-[500px] rounded-[32px] sm:rounded-[60px] table-felt-pattern table-felt-border flex items-center justify-center overflow-hidden ${
             gameState.status === 'TRICK_COMPLETE' ? 'cursor-pointer' : ''
           }`}
         >
-          {/* Active Status Banner */}
-          <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none z-20">
-            <div className="px-4 py-1 rounded-full bg-slate-950/80 border border-emerald-500/30 text-[11px] font-bold text-emerald-300 shadow-md flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span>
+          {/* Active Status Banner (Positioned below North seat) */}
+          <div className="absolute top-12 sm:top-14 inset-x-0 flex justify-center pointer-events-none z-20 px-2">
+            <div className="px-3 py-1 rounded-full bg-slate-950/85 border border-emerald-500/40 text-[10px] sm:text-xs font-bold text-emerald-300 shadow-lg flex items-center gap-1.5 truncate max-w-[90%]">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+              <span className="truncate">
                 {gameState.lastActionMessage}
-                {gameState.status === 'TRICK_COMPLETE' ? ' (Click table to skip)' : ''}
+                {gameState.status === 'TRICK_COMPLETE' ? ' (Click to skip)' : ''}
               </span>
             </div>
           </div>
 
-          {/* 3. CLOSED TRUMP AREA (Top-Left of 2D Table) */}
+          {/* 3. TRUMP INDICATOR BADGE (Top-Left Compact Pill, Zero Collision) */}
           {gameState.trumpMode === 'CLOSED' && (
-            <div className="absolute top-4 left-6 sm:top-6 sm:left-10 z-30 flex flex-col items-center">
-              <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1 drop-shadow-md pointer-events-none">
-                CLOSED TRUMP
-              </span>
-              <div className="w-12 h-16 sm:w-14 sm:h-20 rounded-lg bg-gradient-to-br from-amber-700 via-amber-900 to-amber-950 border-2 border-amber-400/70 flex items-center justify-center shadow-2xl relative overflow-hidden">
-                <div className="absolute inset-1 border border-amber-400/40 rounded bg-[radial-gradient(#d97706_1px,transparent_1px)] [background-size:6px_6px] opacity-70" />
-                <span className="text-2xl sm:text-3xl text-amber-200 font-serif z-10">🂠</span>
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 z-30 flex flex-col items-start gap-1">
+              <div className="px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 flex items-center gap-1.5 shadow-xl">
+                <div className="w-5 h-7 rounded bg-gradient-to-br from-amber-700 to-amber-950 border border-amber-400/80 flex items-center justify-center text-[10px] text-amber-200">
+                  🂠
+                </div>
+                <div className="flex flex-col text-[9px] leading-tight">
+                  <span className="font-extrabold text-amber-400">CLOSED TRUMP</span>
+                  <span className="text-slate-300 font-bold">BID: {gameState.bidding.currentHighBid}</span>
+                </div>
               </div>
 
               {/* SEE TRUMP BUTTON */}
@@ -274,7 +288,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                     e.stopPropagation();
                     dispatchAction({ type: 'SEE_TRUMP', seat: localSeat });
                   }}
-                  className="mt-2 px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-lg flex items-center gap-1 cursor-pointer active:scale-95 z-30 animate-pulse"
+                  className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-[9px] uppercase tracking-wider shadow-md flex items-center gap-1 cursor-pointer active:scale-95 animate-pulse"
                 >
                   <Eye className="w-3 h-3 stroke-[3]" />
                   <span>SEE TRUMP</span>
@@ -285,12 +299,12 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
           {/* Open Trump Badge */}
           {gameState.trumpSuit && (gameState.trumpMode === 'OPEN' || gameState.trumpRevealed) && (
-            <div className="absolute top-4 left-6 sm:top-6 sm:left-10 px-3.5 py-1.5 rounded-2xl bg-slate-950/90 border border-amber-500/50 text-xs font-bold text-slate-200 flex items-center gap-2 shadow-xl z-20">
-              <span className="text-[10px] text-amber-400 uppercase tracking-widest">TRUMP:</span>
-              <span className={`text-lg font-black ${SUIT_COLORS[gameState.trumpSuit] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 text-[10px] font-bold text-slate-200 flex items-center gap-1.5 shadow-xl z-30">
+              <span className="text-[9px] text-amber-400 font-extrabold uppercase">TRUMP:</span>
+              <span className={`text-base font-black ${SUIT_COLORS[gameState.trumpSuit] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
                 {SUIT_SYMBOLS[gameState.trumpSuit]}
               </span>
-              <span className="text-[10px] text-slate-400 border-l border-slate-800 pl-2">
+              <span className="text-[9px] text-slate-400 border-l border-slate-800 pl-1.5">
                 BID: {gameState.bidding.currentHighBid}
               </span>
             </div>
@@ -335,12 +349,12 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           )}
 
           {/* --- CENTER TRICK CARDS PLAYED AREA --- */}
-          <div className="relative w-48 h-48 sm:w-64 sm:h-64 flex items-center justify-center">
+          <div className="relative w-36 h-36 sm:w-56 sm:h-56 flex items-center justify-center">
             {relativeSeats.south && getPlayedCardForSeat(relativeSeats.south.seat) && (
               <motion.div
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 25, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
-                transition={{ duration: 0.4 }}
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 20, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
@@ -354,9 +368,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
             {relativeSeats.west && getPlayedCardForSeat(relativeSeats.west.seat) && (
               <motion.div
-                initial={{ x: -80, opacity: 0 }}
-                animate={{ x: -35, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
-                transition={{ duration: 0.4 }}
+                initial={{ x: -60, opacity: 0 }}
+                animate={{ x: -28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
@@ -370,9 +384,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
             {relativeSeats.north && getPlayedCardForSeat(relativeSeats.north.seat) && (
               <motion.div
-                initial={{ y: -80, opacity: 0 }}
-                animate={{ y: -25, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
-                transition={{ duration: 0.4 }}
+                initial={{ y: -60, opacity: 0 }}
+                animate={{ y: -20, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
@@ -386,9 +400,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
             {relativeSeats.east && getPlayedCardForSeat(relativeSeats.east.seat) && (
               <motion.div
-                initial={{ x: 80, opacity: 0 }}
-                animate={{ x: 35, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.east.seat)?.isFaceDown ? 180 : 0 }}
-                transition={{ duration: 0.4 }}
+                initial={{ x: 60, opacity: 0 }}
+                animate={{ x: 28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.east.seat)?.isFaceDown ? 180 : 0 }}
+                transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
@@ -508,11 +522,44 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         onCancel={() => setIsHonestConfirmOpen(false)}
       />
 
+      {/* LEAVE MATCH CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {isLeaveConfirmOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700/80 rounded-2xl p-5 max-w-xs w-full text-center shadow-2xl"
+            >
+              <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider mb-2">Leave Match?</h3>
+              <p className="text-xs text-slate-300 mb-5">
+                Are you sure you want to leave this active 304 match? Your team will forfeit current round progress.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsLeaveConfirmOpen(false)}
+                  className="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700 active:scale-95"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={onBackToLobby}
+                  className="flex-1 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-500 active:scale-95 shadow-md"
+                >
+                  LEAVE
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Opponent Trump Selection Waiting Banner */}
       {isTrumpSelectionStage && !isMyTurnToSelectTrump && (
-        <div className="fixed inset-x-4 top-20 z-40 max-w-sm mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-2xl text-center">
-          <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">Trump Selection</h4>
-          <p className="text-slate-200 text-sm font-medium">
+        <div className="fixed inset-x-4 top-16 z-40 max-w-sm mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-3 shadow-2xl text-center">
+          <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-0.5">Trump Selection</h4>
+          <p className="text-slate-200 text-xs font-medium">
             {gameState.players[gameState.currentTurnSeat]?.name} is selecting a physical card as Trump...
           </p>
         </div>
@@ -553,19 +600,19 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
   position,
 }) => {
   const posClasses = {
-    north: 'top-3 left-1/2 -translate-x-1/2',
-    south: 'bottom-3 left-1/2 -translate-x-1/2',
-    east: 'right-3 top-1/2 -translate-y-1/2',
-    west: 'left-3 top-1/2 -translate-y-1/2',
+    north: 'top-2 left-1/2 -translate-x-1/2',
+    south: 'bottom-2 left-1/2 -translate-x-1/2',
+    east: 'right-1.5 sm:right-3 top-1/2 -translate-y-1/2',
+    west: 'left-1.5 sm:left-3 top-1/2 -translate-y-1/2',
   }[position];
 
   return (
     <div className={`absolute z-20 flex flex-col items-center pointer-events-none ${posClasses}`}>
       <div className="relative">
         <div
-          className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full p-0.5 flex items-center justify-center transition-all ${
+          className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full p-0.5 flex items-center justify-center transition-all ${
             isSpeaking
-              ? 'ring-4 ring-emerald-400 animate-pulse shadow-emerald-500/80 shadow-2xl scale-110'
+              ? 'ring-4 ring-emerald-400 animate-pulse shadow-emerald-500/80 shadow-2xl scale-105'
               : isTurn
               ? 'ring-4 ring-amber-400 animate-turn-glow shadow-amber-500/50 shadow-xl'
               : 'border-2 border-slate-700/80 bg-slate-900/80'
@@ -579,31 +626,31 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
         </div>
 
         {isSpeaking && (
-          <span className="absolute -top-1 -left-1 p-1 rounded-full bg-emerald-500 text-slate-950 shadow-md animate-bounce">
-            <Mic className="w-3 h-3 stroke-[3]" />
+          <span className="absolute -top-1 -left-1 p-0.5 rounded-full bg-emerald-500 text-slate-950 shadow-md animate-bounce">
+            <Mic className="w-2.5 h-2.5 stroke-[3]" />
           </span>
         )}
 
         {isDealer && (
-          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[9px] shadow-sm">
+          <span className="absolute -top-1 -right-1 px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[8px] shadow-sm">
             D
           </span>
         )}
 
         <span
-          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter ${
+          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 px-1 py-0.2 rounded-full text-[7px] sm:text-[8px] font-black uppercase tracking-tighter ${
             player.team === 0 ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
           }`}
         >
-          {player.team === 0 ? 'TEAM A' : 'TEAM B'}
+          {player.team === 0 ? 'A' : 'B'}
         </span>
       </div>
 
-      <div className="mt-2 px-2.5 py-0.5 rounded-full bg-slate-950/90 border border-slate-800/80 flex items-center gap-1.5 shadow-md">
-        <span className="text-[11px] font-bold text-slate-200 truncate max-w-[90px]">
+      <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-950/90 border border-slate-800/80 flex items-center gap-1 shadow-md">
+        <span className="text-[10px] sm:text-[11px] font-bold text-slate-200 truncate max-w-[64px] sm:max-w-[90px]">
           {player.name}
         </span>
-        <span className="text-[10px] text-amber-400 font-bold">🂠 {player.cardCount}</span>
+        <span className="text-[9px] sm:text-[10px] text-amber-400 font-bold">🂠{player.cardCount}</span>
       </div>
     </div>
   );

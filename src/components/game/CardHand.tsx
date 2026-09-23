@@ -90,14 +90,16 @@ export const CardHand: React.FC<CardHandProps> = ({
       )}
 
       {/* Fan layout of cards */}
-      <div className="relative flex items-center justify-center h-28 sm:h-36 w-full px-4 overflow-visible">
+      <div className="relative flex items-center justify-center h-24 sm:h-32 w-full px-2 max-w-full overflow-hidden">
         <AnimatePresence>
           {cards.map((card, index) => {
             const total = cards.length;
-            // Calculate arc rotation & overlap offset
-            const angleStep = 4;
+            // Dynamic arc rotation & overlap offset calculation based on card count & mobile screen constraint
+            const maxSpan = total > 6 ? 260 : 200; // max horizontal span in px for small mobile
+            const step = total > 1 ? maxSpan / (total - 1) : 0;
+            const xOffset = (index - (total - 1) / 2) * Math.min(step, 32);
+            const angleStep = total > 6 ? 3 : 4;
             const rotation = (index - (total - 1) / 2) * angleStep;
-            const xOffset = (index - (total - 1) / 2) * (total > 6 ? 24 : 32);
 
             const isSelected = selectedCardId === card.id;
             const isLegal = !isMyTurn || legalCards.some((c) => c.id === card.id);
@@ -108,8 +110,8 @@ export const CardHand: React.FC<CardHandProps> = ({
                 initial={{ opacity: 0, y: 50, scale: 0.8 }}
                 animate={{ opacity: 1, y: 0, scale: 1, rotate: rotation, x: xOffset }}
                 exit={{ opacity: 0, y: -40, scale: 0.6 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 24, delay: index * 0.04 }}
-                className="absolute"
+                transition={{ type: 'spring', stiffness: 300, damping: 24, delay: index * 0.03 }}
+                className="absolute touch-manipulation"
                 style={{ zIndex: isSelected ? 40 : index + 10 }}
               >
                 <PlayingCard
