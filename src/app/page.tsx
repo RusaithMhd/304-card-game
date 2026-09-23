@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LobbyHeader, NavTab } from '../components/lobby/LobbyHeader';
 import { ActiveRoomsList } from '../components/lobby/ActiveRoomsList';
 import { FriendsView } from '../components/friends/FriendsView';
@@ -8,6 +8,7 @@ import { MatchHistoryView } from '../components/history/MatchHistoryView';
 import { ProfileView } from '../components/profile/ProfileView';
 import { CreateRoomModal } from '../components/lobby/CreateRoomModal';
 import { JoinRoomModal } from '../components/lobby/JoinRoomModal';
+import { AuthPortalModal } from '../components/auth/AuthPortalModal';
 import { WaitingRoom } from '../components/rooms/WaitingRoom';
 import { CardTable } from '../components/game/CardTable';
 import { useRoomStore } from '../stores/useRoomStore';
@@ -18,16 +19,30 @@ export default function HomePage() {
   const [currentView, setCurrentView] = useState<'lobby' | 'waiting' | 'game'>('lobby');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isAuthPortalOpen, setIsAuthPortalOpen] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
-  const { joinRoomByCode, currentRoom } = useRoomStore();
-  const { user } = useAuthStore();
+  const { joinRoomByCode } = useRoomStore();
+  const { user, initializeAuth, isAuthenticated, isLoading } = useAuthStore();
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  // Show Auth Portal if user is not logged in and not in guest mode
+  const showAuthPortal = !isLoading && !isAuthenticated && !isGuestMode;
 
   const handleJoinRoom = (code: string) => {
-    if (!user) return;
+    const playerProfile = user || {
+      id: 'guest_user',
+      display_name: 'Guest Player',
+      avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=guest',
+    };
+
     const room = joinRoomByCode(code, {
-      id: user.id,
-      name: user.display_name,
-      avatar: user.avatar_url,
+      id: playerProfile.id,
+      name: playerProfile.display_name,
+      avatar: playerProfile.avatar_url,
     });
     if (room) {
       setCurrentView('waiting');
@@ -48,15 +63,33 @@ export default function HomePage() {
           <LobbyHeader
             activeTab={activeTab}
             onTabChange={(tab) => setActiveTab(tab)}
-            onCreateRoom={() => setIsCreateModalOpen(true)}
-            onJoinRoom={() => setIsJoinModalOpen(true)}
+            onCreateRoom={() => {
+              if (!isAuthenticated && !isGuestMode) {
+                setIsAuthPortalOpen(true);
+              } else {
+                setIsCreateModalOpen(true);
+              }
+            }}
+            onJoinRoom={() => {
+              if (!isAuthenticated && !isGuestMode) {
+                setIsAuthPortalOpen(true);
+              } else {
+                setIsJoinModalOpen(true);
+              }
+            }}
           />
 
           <main className="flex-1 pb-20 md:pb-6">
             {activeTab === 'home' && (
               <ActiveRoomsList
                 onJoinRoom={handleJoinRoom}
-                onCreateRoom={() => setIsCreateModalOpen(true)}
+                onCreateRoom={() => {
+                  if (!isAuthenticated && !isGuestMode) {
+                    setIsAuthPortalOpen(true);
+                  } else {
+                    setIsCreateModalOpen(true);
+                  }
+                }}
                 onJoinCodeModal={() => setIsJoinModalOpen(true)}
               />
             )}
@@ -75,6 +108,15 @@ export default function HomePage() {
             isOpen={isJoinModalOpen}
             onClose={() => setIsJoinModalOpen(false)}
             onJoined={() => setCurrentView('waiting')}
+          />
+
+          <AuthPortalModal
+            isOpen={showAuthPortal || isAuthPortalOpen}
+            onClose={() => setIsAuthPortalOpen(false)}
+            onGuestPlay={() => {
+              setIsGuestMode(true);
+              setIsAuthPortalOpen(false);
+            }}
           />
         </>
       )}
