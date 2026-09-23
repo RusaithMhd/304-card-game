@@ -5,7 +5,13 @@ import { GameEngineState } from './types';
  * In standard 304, PCC can be declared during BIDDING or before TRICK 1 by the bidding team.
  */
 export function canDeclarePCC(state: GameEngineState, seat: number): boolean {
-  if (state.status !== 'BIDDING' && state.status !== 'TRUMP_SELECTION' && state.status !== 'PLAYING') {
+  const isBiddingOrTrumpStage =
+    state.status === 'FOUR_CARD_BIDDING' ||
+    state.status === 'EIGHT_CARD_BIDDING' ||
+    state.status === 'TRUMP_SELECTION_4' ||
+    state.status === 'TRUMP_REPLACEMENT_8';
+
+  if (!isBiddingOrTrumpStage && state.status !== 'PLAYING') {
     return false;
   }
 
@@ -46,3 +52,4 @@ export function executePCC(state: GameEngineState, seat: number): GameEngineStat
   nextState.lastActionMessage = `🔥 PCC DECLARED by ${nextState.players[seat].name}! Target raised to maximum 304 points!`;
   return nextState;
 }
+

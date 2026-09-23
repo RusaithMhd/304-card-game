@@ -7,12 +7,12 @@ import {
   PlayedCard,
 } from './types';
 import { create32CardDeck, shuffleDeck, dealInitialCards, dealRemainingCards } from './deck';
-import { isValidBid, MIN_BID } from './bidding';
-import { getLegalCards, determineTrickWinner, getTrickPoints } from './trickRules';
+import { isValidBid, getMinimumBidForPlayer, MIN_BID, MIN_BID_8_CARD } from './bidding';
+import { getLegalCards, determineTrickWinner, getTrickPoints, canLeadCard } from './trickRules';
 import { evaluateRoundResult } from './scoring';
 import { canDeclarePCC, executePCC } from './pccRules';
 import { logGameEvent } from './honestPlay';
-import { sortPlayerHand, SUIT_SYMBOLS } from './cardValues';
+import { sortPlayerHand, SUIT_SYMBOLS, getCardPoints } from './cardValues';
 import { canDeclareHonestGame, canViewTrumpCard, evaluateHonestGameResult } from './honestGameRules';
 
 export function createInitialPlayer(id: string, name: string, avatar: string, seat: number): PlayerState {
@@ -26,6 +26,7 @@ export function createInitialPlayer(id: string, name: string, avatar: string, se
     cardCount: 0,
     isReady: false,
     isConnected: true,
+    bidTurnsCount: 0,
   };
 }
 
@@ -43,24 +44,27 @@ export function createInitialState(roomId: string, players: PlayerState[]): Game
       bidderSeat: null,
       passes: [],
       isComplete: false,
+      bidStage: '4_CARD',
     },
     trumpSuit: null,
-    trumpMode: 'CLOSED', // CLOSED TRUMP DEFAULT PRIORITY!
+    trumpMode: 'CLOSED', // CLOSED TRUMP DEFAULT PRIORITY
     trumpCard: null,
     trumpRevealed: false,
     isPccDeclared: false,
     pccDeclaringSeat: undefined,
-    isHonestPlayActive: true, // HONEST PLAY ALWAYS ACTIVE
+    isHonestPlayActive: true,
     pendingVoidChoiceSeat: null,
     pendingFlipSelectSeat: null,
     tricks: [],
     currentTrick: null,
     teamAScore: 0,
     teamBScore: 0,
+    teamATokens: 11, // Match starting tokens
+    teamBTokens: 11,
     teamAMatchPoints: 0,
     teamBMatchPoints: 0,
     winningTeam: null,
-    lastActionMessage: 'Game initialized with Honest Play & Closed Trump priority.',
+    lastActionMessage: 'Game initialized. Sri Lankan 304 rules active.',
     updatedAt: Date.now(),
   };
 }
@@ -75,7 +79,7 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         throw new Error('304 requires exactly 4 players');
       }
 
-      // Shuffle and deal initial 4 cards
+      // Reset round state
       const freshDeck = shuffleDeck(create32CardDeck());
       const { hands, remainingDeck } = dealInitialCards(freshDeck);
 
@@ -83,80 +87,224 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       for (let i = 0; i < 4; i++) {
         nextState.players[i].cards = sortPlayerHand(hands[i]);
         nextState.players[i].cardCount = 4;
+        nextState.players[i].bidTurnsCount = 0;
       }
 
-      nextState.status = 'BIDDING';
-      nextState.currentTurnSeat = (nextState.dealerSeat + 1) % 4;
+      const playerRightOfDealer = (nextState.dealerSeat + 1) % 4;
+      const initialHandPoints = hands[playerRightOfDealer].reduce((sum, c) => sum + getCardPoints(c), 0);
+
+      // Rule 9: Redeal check if hand points < 15 for player right of dealer
+      if (initialHandPoints < 15) {
+        nextState.status = 'REDEAL_CHECK';
+        nextState.redealEligibleSeat = playerRightOfDealer;
+        nextState.currentTurnSeat = playerRightOfDealer;
+        nextState.lastActionMessage = `${nextState.players[playerRightOfDealer].name} has ${initialHandPoints} points (<15). Redeal option available.`;
+      } else {
+        nextState.status = 'FOUR_CARD_BIDDING';
+        nextState.redealEligibleSeat = null;
+        nextState.currentTurnSeat = playerRightOfDealer;
+        nextState.lastActionMessage = `4-card deal complete. ${nextState.players[nextState.currentTurnSeat].name}'s turn to bid (min 160).`;
+      }
+
       nextState.bidding = {
         currentHighBid: 0,
         bidderSeat: null,
         passes: [],
         isComplete: false,
+        bidStage: '4_CARD',
       };
+      nextState.trumpSuit = null;
+      nextState.trumpCard = null;
+      nextState.trumpRevealed = false;
       nextState.tricks = [];
       nextState.currentTrick = null;
       nextState.teamAScore = 0;
       nextState.teamBScore = 0;
       nextState.isPccDeclared = false;
+      nextState.isPartnerCloseCaps = false;
+      nextState.capsDeclared = false;
+      nextState.isSpoiltTrumpsDeclared = false;
       nextState.pendingVoidChoiceSeat = null;
       nextState.pendingFlipSelectSeat = null;
-      nextState.lastActionMessage = `Cards dealt. ${nextState.players[nextState.currentTurnSeat].name}'s turn to bid (Closed Trump Priority).`;
 
       logGameEvent(nextState.id, 'server', 'CARDS_DEALT', { dealerSeat: nextState.dealerSeat });
       break;
     }
 
+    case 'REQUEST_REDEAL': {
+      if (nextState.status !== 'REDEAL_CHECK' || action.seat !== nextState.redealEligibleSeat) {
+        throw new Error('Not authorized to request redeal');
+      }
+
+      // Gather cards, shuffle, redeal with same dealer
+      const freshDeck = shuffleDeck(create32CardDeck());
+      const { hands, remainingDeck } = dealInitialCards(freshDeck);
+
+      nextState.deck = remainingDeck;
+      for (let i = 0; i < 4; i++) {
+        nextState.players[i].cards = sortPlayerHand(hands[i]);
+        nextState.players[i].cardCount = 4;
+        nextState.players[i].bidTurnsCount = 0;
+      }
+
+      const playerRightOfDealer = (nextState.dealerSeat + 1) % 4;
+      const initialHandPoints = hands[playerRightOfDealer].reduce((sum, c) => sum + getCardPoints(c), 0);
+
+      if (initialHandPoints < 15) {
+        nextState.status = 'REDEAL_CHECK';
+        nextState.redealEligibleSeat = playerRightOfDealer;
+        nextState.lastActionMessage = `Redealt. ${nextState.players[playerRightOfDealer].name} has ${initialHandPoints} points (<15).`;
+      } else {
+        nextState.status = 'FOUR_CARD_BIDDING';
+        nextState.redealEligibleSeat = null;
+        nextState.currentTurnSeat = playerRightOfDealer;
+        nextState.lastActionMessage = `Redealt successfully! ${nextState.players[nextState.currentTurnSeat].name}'s turn to bid.`;
+      }
+      break;
+    }
+
+    case 'SKIP_REDEAL': {
+      if (nextState.status !== 'REDEAL_CHECK' || action.seat !== nextState.redealEligibleSeat) {
+        throw new Error('Not authorized to skip redeal');
+      }
+      nextState.status = 'FOUR_CARD_BIDDING';
+      nextState.redealEligibleSeat = null;
+      nextState.currentTurnSeat = (nextState.dealerSeat + 1) % 4;
+      nextState.lastActionMessage = `${nextState.players[action.seat].name} skipped redeal. Bidding begins (min 160).`;
+      break;
+    }
+
     case 'PLACE_BID': {
-      if (nextState.status !== 'BIDDING') {
-        throw new Error('Game is not in BIDDING state');
+      if (nextState.status !== 'FOUR_CARD_BIDDING' && nextState.status !== 'EIGHT_CARD_BIDDING') {
+        throw new Error('Game is not in a BIDDING state');
       }
       if (action.seat !== nextState.currentTurnSeat) {
         throw new Error(`Not player ${action.seat}'s turn to bid`);
       }
-      if (!isValidBid(action.amount, nextState.bidding.currentHighBid)) {
+
+      const player = nextState.players[action.seat];
+      const isPartnerHighBidder = nextState.bidding.bidderSeat !== null && (nextState.bidding.bidderSeat % 2 === player.team);
+
+      if (!isValidBid(action.amount, nextState.bidding.bidStage || '4_CARD', nextState.bidding.currentHighBid, isPartnerHighBidder, player.bidTurnsCount || 0)) {
         throw new Error(`Invalid bid amount ${action.amount}`);
       }
 
-      nextState.bidding.currentHighBid = action.amount;
-      nextState.bidding.bidderSeat = action.seat;
+      player.bidTurnsCount = (player.bidTurnsCount || 0) + 1;
 
-      nextState.lastActionMessage = `${nextState.players[action.seat].name} bid ${action.amount}`;
-      logGameEvent(nextState.id, nextState.players[action.seat].id, 'BID_PLACED', { amount: action.amount });
+      if (nextState.bidding.bidStage === '8_CARD') {
+        // 8-Card Bid overrides 4-card bid result!
+        if (nextState.trumpCard && nextState.bidding.initialTrumpMakerSeat !== null) {
+          // Return old indicator card to old maker's hand
+          const oldMaker = nextState.players[nextState.bidding.initialTrumpMakerSeat!];
+          oldMaker.cards.push(nextState.trumpCard);
+          oldMaker.cards = sortPlayerHand(oldMaker.cards);
+          oldMaker.cardCount = oldMaker.cards.length;
+          nextState.trumpCard = null;
+        }
 
-      // Advance to next active bidder
-      nextState.currentTurnSeat = getNextActiveBidderSeat(nextState);
+        nextState.bidding.currentHighBid = action.amount;
+        nextState.bidding.bidderSeat = action.seat;
+        nextState.status = 'TRUMP_REPLACEMENT_8';
+        nextState.currentTurnSeat = action.seat;
+        nextState.lastActionMessage = `${player.name} placed 8-card bid of ${action.amount}! Select new Trump card from 8 cards.`;
+      } else {
+        // 4-Card Stage
+        nextState.bidding.currentHighBid = action.amount;
+        nextState.bidding.bidderSeat = action.seat;
+        nextState.lastActionMessage = `${player.name} bid ${action.amount}`;
+        nextState.currentTurnSeat = getNextActiveBidderSeat(nextState);
+      }
       break;
     }
 
     case 'PASS_BID': {
-      if (nextState.status !== 'BIDDING') {
-        throw new Error('Game is not in BIDDING state');
+      if (nextState.status !== 'FOUR_CARD_BIDDING' && nextState.status !== 'EIGHT_CARD_BIDDING') {
+        throw new Error('Game is not in a BIDDING state');
       }
       if (action.seat !== nextState.currentTurnSeat) {
         throw new Error(`Not player ${action.seat}'s turn`);
       }
 
+      const player = nextState.players[action.seat];
+      player.bidTurnsCount = (player.bidTurnsCount || 0) + 1;
+
       if (!nextState.bidding.passes.includes(action.seat)) {
         nextState.bidding.passes.push(action.seat);
       }
 
-      nextState.lastActionMessage = `${nextState.players[action.seat].name} passed`;
+      nextState.lastActionMessage = `${player.name} passed`;
 
-      // Check if bidding is complete (3 players passed)
-      if (nextState.bidding.passes.length >= 3) {
-        nextState.bidding.isComplete = true;
-
-        if (nextState.bidding.bidderSeat === null) {
-          nextState.bidding.bidderSeat = (nextState.dealerSeat + 1) % 4;
-          nextState.bidding.currentHighBid = MIN_BID;
+      if (nextState.bidding.bidStage === '4_CARD') {
+        // Check if all 4 passed -> Rule 10: NO PLAY, NO SCORE, NO TRUMP! Reset deal to next dealer.
+        if (nextState.bidding.passes.length >= 4) {
+          const nextDealer = (nextState.dealerSeat + 1) % 4;
+          nextState.dealerSeat = nextDealer;
+          nextState.lastActionMessage = 'All players passed in 4-card bidding! No play. Deal passes to next dealer.';
+          
+          const freshDeck = shuffleDeck(create32CardDeck());
+          const { hands, remainingDeck } = dealInitialCards(freshDeck);
+          nextState.deck = remainingDeck;
+          for (let i = 0; i < 4; i++) {
+            nextState.players[i].cards = sortPlayerHand(hands[i]);
+            nextState.players[i].cardCount = 4;
+            nextState.players[i].bidTurnsCount = 0;
+          }
+          nextState.bidding.passes = [];
+          nextState.bidding.currentHighBid = 0;
+          nextState.bidding.bidderSeat = null;
+          nextState.currentTurnSeat = (nextDealer + 1) % 4;
+          break;
         }
 
-        nextState.status = 'TRUMP_SELECTION';
-        nextState.currentTurnSeat = nextState.bidding.bidderSeat;
-        nextState.lastActionMessage = `Bidding complete! ${nextState.players[nextState.currentTurnSeat].name} won bid (${nextState.bidding.currentHighBid}). Select CLOSED TRUMP (Priority).`;
-      } else {
+        // 3 passes after a bid -> 4-card bidding complete!
+        if (nextState.bidding.passes.length >= 3 && nextState.bidding.bidderSeat !== null) {
+          nextState.bidding.isComplete = true;
+          nextState.bidding.initialTrumpMakerSeat = nextState.bidding.bidderSeat;
+          nextState.bidding.initialBidAmount = nextState.bidding.currentHighBid;
+          nextState.status = 'TRUMP_SELECTION_4';
+          nextState.currentTurnSeat = nextState.bidding.bidderSeat;
+          nextState.lastActionMessage = `Initial bidding complete! ${nextState.players[nextState.currentTurnSeat].name} won bid (${nextState.bidding.currentHighBid}). Select Trump card from 4 cards.`;
+          break;
+        }
+
         nextState.currentTurnSeat = getNextActiveBidderSeat(nextState);
+      } else {
+        // 8-Card Stage: 1 round counter-clockwise
+        const unpassed = [0, 1, 2, 3].filter((s) => !nextState.bidding.passes.includes(s));
+        if (unpassed.length <= 1 || nextState.bidding.passes.length >= 4) {
+          // 8-card bidding complete!
+          startTrickPlay(nextState);
+        } else {
+          nextState.currentTurnSeat = getNextActiveBidderSeat(nextState);
+        }
       }
+      break;
+    }
+
+    case 'DECLARE_PARTNER_CLOSE_CAPS': {
+      if (nextState.status !== 'EIGHT_CARD_BIDDING') {
+        throw new Error('Partner Close Caps can only be declared during 8-card bidding');
+      }
+
+      const player = nextState.players[action.seat];
+      nextState.isPartnerCloseCaps = true;
+      nextState.partnerCloseCapsSeat = action.seat;
+      nextState.bidding.currentHighBid = 304;
+      nextState.bidding.bidderSeat = action.seat;
+      nextState.bidding.isPartnerCloseCaps = true;
+
+      // Trump replacement for Partner Close Caps
+      if (nextState.trumpCard && nextState.bidding.initialTrumpMakerSeat !== null) {
+        const oldMaker = nextState.players[nextState.bidding.initialTrumpMakerSeat!];
+        oldMaker.cards.push(nextState.trumpCard);
+        oldMaker.cards = sortPlayerHand(oldMaker.cards);
+        oldMaker.cardCount = oldMaker.cards.length;
+        nextState.trumpCard = null;
+      }
+
+      nextState.status = 'TRUMP_REPLACEMENT_8';
+      nextState.currentTurnSeat = action.seat;
+      nextState.lastActionMessage = `🔥 ${player.name} DECLARED PARTNER CLOSE CAPS! Select Trump card from 8 cards.`;
       break;
     }
 
@@ -171,52 +319,7 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         throw new Error('Cannot declare Honest Game at this stage');
       }
 
-      const player = nextState.players[action.seat];
-      nextState.honestGame = true;
-      nextState.honestGamePlayerId = player.id;
-      nextState.honestGameTeamId = player.team;
-      nextState.honestGameCommitment = 250;
-      nextState.honestGamePlacedBySeat = action.seat;
-      nextState.bidding.bidderSeat = action.seat;
-      nextState.bidding.currentHighBid = 250;
-      nextState.bidding.isComplete = true;
-
-      nextState.status = 'TRUMP_SELECTION';
-      nextState.currentTurnSeat = action.seat;
-      nextState.lastActionMessage = `${player.name} declared HONEST GAME (250+ Commitment)! Select Trump.`;
-
-      logGameEvent(nextState.id, player.id, 'HONEST_GAME_DECLARED', {
-        seat: action.seat,
-        commitment: 250,
-      });
-      break;
-    }
-
-    case 'SEE_TRUMP': {
-      if (!canViewTrumpCard(nextState, action.seat)) {
-        throw new Error('Unauthorized to view Trump card');
-      }
-
-      nextState.trumpRevealed = true;
-      nextState.lastActionMessage = `${nextState.players[action.seat].name} pressed SEE TRUMP! Trump is ${SUIT_SYMBOLS[nextState.trumpSuit!]} (${nextState.trumpCard?.rank || ''}).`;
-      logGameEvent(nextState.id, nextState.players[action.seat].id, 'HONEST_TRUMP_REVEALED', {
-        suit: nextState.trumpSuit,
-        cardId: nextState.trumpCard?.id,
-      });
-      break;
-    }
-
-    case 'SELECT_TRUMP': {
-      if (nextState.status !== 'TRUMP_SELECTION') {
-        throw new Error('Game is not in TRUMP_SELECTION state');
-      }
-      if (action.seat !== nextState.bidding.bidderSeat) {
-        throw new Error('Only winning bidder can select trump');
-      }
-
-      const player = nextState.players[action.seat];
-
-      // Deal remaining 4 cards to everyone first (so player has full 8 cards to select from)
+      // Deal remaining 4 cards if still in deck (Honest Game requires 8 cards)
       if (nextState.deck.length > 0) {
         const currentHands: [Card[], Card[], Card[], Card[]] = [
           nextState.players[0].cards,
@@ -229,59 +332,106 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
 
         for (let i = 0; i < 4; i++) {
           nextState.players[i].cards = sortPlayerHand(updatedHands[i]);
-          nextState.players[i].cardCount = 8;
+          nextState.players[i].cardCount = nextState.players[i].cards.length;
         }
       }
 
-      // Look up physical selected card from player's actual hand
-      const selectedTrumpCard = player.cards.find(c => c.id === action.cardId)
-        || (action.suit ? player.cards.find(c => c.suit === action.suit) : null)
-        || player.cards[0];
+      const player = nextState.players[action.seat];
+      nextState.honestGame = true;
+      nextState.honestGamePlayerId = player.id;
+      nextState.honestGameTeamId = player.team;
+      nextState.honestGameCommitment = 250;
+      nextState.honestGamePlacedBySeat = action.seat;
+      nextState.bidding.bidderSeat = action.seat;
+      nextState.bidding.currentHighBid = 250;
+      nextState.bidding.isComplete = true;
+
+      // Return old trump if replacing
+      if (nextState.trumpCard && nextState.bidding.initialTrumpMakerSeat !== null && nextState.bidding.initialTrumpMakerSeat !== action.seat) {
+        const oldMaker = nextState.players[nextState.bidding.initialTrumpMakerSeat!];
+        oldMaker.cards.push(nextState.trumpCard);
+        oldMaker.cards = sortPlayerHand(oldMaker.cards);
+        oldMaker.cardCount = oldMaker.cards.length;
+        nextState.trumpCard = null;
+      }
+
+      nextState.status = 'TRUMP_REPLACEMENT_8';
+      nextState.currentTurnSeat = action.seat;
+      nextState.lastActionMessage = `${player.name} declared HONEST GAME (250+ Commitment)! Select Trump card.`;
+      break;
+    }
+
+
+    case 'SELECT_TRUMP': {
+      if (nextState.status !== 'TRUMP_SELECTION_4' && nextState.status !== 'TRUMP_REPLACEMENT_8') {
+        throw new Error('Game is not in a TRUMP_SELECTION state');
+      }
+      if (action.seat !== nextState.currentTurnSeat) {
+        throw new Error('Only current trump maker can select trump');
+      }
+
+      const player = nextState.players[action.seat];
+      const selectedTrumpCard = player.cards.find((c) => c.id === action.cardId) || player.cards[0];
 
       if (!selectedTrumpCard) {
         throw new Error('Invalid card selection for Trump');
       }
 
-      // Derive Trump suit directly from the physical selected card!
+      // Establish Trump
       nextState.trumpSuit = selectedTrumpCard.suit;
-      nextState.trumpMode = action.mode || 'CLOSED'; // Default priority CLOSED
+      nextState.trumpMode = action.mode || 'CLOSED';
       nextState.trumpRevealed = action.mode === 'OPEN';
       nextState.trumpCard = selectedTrumpCard;
-      nextState.honestGamePlacedBySeat = action.seat;
 
-      if (action.mode === 'CLOSED' || !action.mode) {
-        // EXACT MANDATORY RULE 8 & 9: Extract original card object from hand (7 cards in hand + 1 Trump on board = 32 unique cards)
-        player.cards = sortPlayerHand(player.cards.filter(c => c.id !== selectedTrumpCard.id));
-        player.cardCount = player.cards.length; // 7 CARDS IN HAND
+      // Extract indicator card from player's hand (placed face-down on table)
+      player.cards = sortPlayerHand(player.cards.filter((c) => c.id !== selectedTrumpCard.id));
+      player.cardCount = player.cards.length;
 
-        logGameEvent(nextState.id, player.id, 'HONEST_TRUMP_PLACED', {
-          cardId: selectedTrumpCard.id,
-          suit: selectedTrumpCard.suit,
-          rank: selectedTrumpCard.rank,
-        });
+      if (nextState.status === 'TRUMP_SELECTION_4') {
+        // Deal remaining 4 cards to all players
+        if (nextState.deck.length > 0) {
+          const currentHands: [Card[], Card[], Card[], Card[]] = [
+            nextState.players[0].cards,
+            nextState.players[1].cards,
+            nextState.players[2].cards,
+            nextState.players[3].cards,
+          ];
+          const updatedHands = dealRemainingCards(currentHands, nextState.deck);
+          nextState.deck = [];
+
+          for (let i = 0; i < 4; i++) {
+            nextState.players[i].cards = sortPlayerHand(updatedHands[i]);
+            nextState.players[i].cardCount = nextState.players[i].cards.length;
+          }
+        }
+
+        // Proceed to 8-Card Bidding stage
+        nextState.status = 'EIGHT_CARD_BIDDING';
+        nextState.bidding.bidStage = '8_CARD';
+        nextState.bidding.passes = [];
+        nextState.currentTurnSeat = nextState.bidding.bidderSeat!;
+        nextState.lastActionMessage = `Trump indicator set (${selectedTrumpCard.rank}${SUIT_SYMBOLS[selectedTrumpCard.suit]} - ${nextState.trumpMode}). Remaining 4 cards dealt! 8-Card Bidding begins (min 250).`;
+      } else {
+        // TRUMP_REPLACEMENT_8 -> Proceed directly to Trick 1
+        startTrickPlay(nextState);
+      }
+      break;
+    }
+
+    case 'SEE_TRUMP': {
+      if (!canViewTrumpCard(nextState, action.seat)) {
+        throw new Error('Unauthorized to view Trump card');
       }
 
-      // Start Trick 1
-      const leadSeat = (nextState.dealerSeat + 1) % 4;
-      nextState.status = 'PLAYING';
-      nextState.currentTurnSeat = leadSeat;
-      nextState.currentTrick = {
-        trickNumber: 1,
-        leadSeat,
-        cardsPlayed: [],
-        points: 0,
-      };
-
-      nextState.lastActionMessage = `Trump selected (${selectedTrumpCard.rank}${SUIT_SYMBOLS[selectedTrumpCard.suit]} - ${action.mode === 'OPEN' ? 'OPEN' : '🔒 CLOSED'}). Trick 1 begins!`;
-      logGameEvent(nextState.id, player.id, 'CLOSED_TRUMP_SELECTED', { mode: action.mode, suit: selectedTrumpCard.suit, cardId: selectedTrumpCard.id });
+      nextState.trumpRevealed = true;
+      nextState.lastActionMessage = `${nextState.players[action.seat].name} pressed SEE TRUMP! Trump is ${SUIT_SYMBOLS[nextState.trumpSuit!]} (${nextState.trumpCard?.rank || ''}).`;
       break;
     }
 
     case 'REVEAL_TRUMP': {
       if (!nextState.trumpRevealed && nextState.trumpSuit) {
         nextState.trumpRevealed = true;
-        nextState.lastActionMessage = `Trump revealed! Trump suit is ${SUIT_SYMBOLS[nextState.trumpSuit]} ${nextState.trumpSuit}.`;
-        logGameEvent(nextState.id, nextState.players[action.seat].id, 'TRUMP_REVEALED', { suit: nextState.trumpSuit });
+        nextState.lastActionMessage = `Trump revealed! Trump suit is ${SUIT_SYMBOLS[nextState.trumpSuit]}.`;
       }
       break;
     }
@@ -297,7 +447,6 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       const player = nextState.players[action.seat];
 
       if (action.option === 'USE_TRUMP') {
-        // Player intentionally chooses to play the actual hidden Trump card
         const trumpCard = nextState.trumpCard || {
           id: `trump_${Date.now()}`,
           suit: nextState.trumpSuit || 'H',
@@ -309,7 +458,7 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
           card: trumpCard,
           playedAt: Date.now(),
           isActualTrump: true,
-          isFaceDown: true, // Face down until trick resolution!
+          isFaceDown: true,
           isRevealed: false,
         };
 
@@ -319,15 +468,11 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         nextState.pendingFlipSelectSeat = null;
 
         nextState.lastActionMessage = `${player.name} placed the ACTUAL TRUMP face-down on the table!`;
-        logGameEvent(nextState.id, player.id, 'USE_ACTUAL_TRUMP', { seat: action.seat });
-
         checkAndResolveTrick(nextState);
       } else if (action.option === 'FLIP_CARD') {
-        // Player chooses to gamble by flipping 1 card from their hand
         nextState.pendingVoidChoiceSeat = null;
         nextState.pendingFlipSelectSeat = action.seat;
         nextState.lastActionMessage = `${player.name} chose FLIP A CARD! Select 1 card to gamble.`;
-        logGameEvent(nextState.id, player.id, 'CHOOSE_FLIP_GAMBLE', { seat: action.seat });
       }
       break;
     }
@@ -344,18 +489,29 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       }
 
       const player = nextState.players[action.seat];
-      const cardToPlay = player.cards.find(c => c.id === action.cardId);
+      const cardToPlay = player.cards.find((c) => c.id === action.cardId);
       if (!cardToPlay) {
         throw new Error(`Card ${action.cardId} not found in player ${action.seat}'s hand`);
       }
 
+      const isTrick1 = nextState.currentTrick.trickNumber === 1;
+      const isTrumpMaker = action.seat === nextState.bidding.bidderSeat;
+      const isTrumpMakerRightOfDealer = action.seat === (nextState.dealerSeat + 1) % 4;
+
+      // If leading trick, check lead restrictions (Rule 22 & 23)
+      if (nextState.currentTrick.cardsPlayed.length === 0) {
+        if (!canLeadCard(cardToPlay, player.cards, isTrick1, isTrumpMakerRightOfDealer, isTrumpMaker, nextState.trumpSuit, nextState.trumpRevealed, nextState.trumpCard)) {
+          throw new Error('Cannot lead this card under 304 trump lead restrictions!');
+        }
+      }
+
       const leadSuit = nextState.currentTrick.cardsPlayed.length > 0
-        ? (nextState.currentTrick.cardsPlayed[0].card.suit)
+        ? nextState.currentTrick.cardsPlayed[0].card.suit
         : null;
 
-      // Handle card play during pending flip selection (glowing/gambling card choice)
+      // Handle card play during pending flip selection
       if (nextState.pendingFlipSelectSeat === action.seat) {
-        player.cards = sortPlayerHand(player.cards.filter(c => c.id !== cardToPlay.id));
+        player.cards = sortPlayerHand(player.cards.filter((c) => c.id !== cardToPlay.id));
         player.cardCount = player.cards.length;
 
         nextState.currentTrick.cardsPlayed.push({
@@ -363,7 +519,7 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
           card: cardToPlay,
           playedAt: Date.now(),
           isFlippedGamble: true,
-          isFaceDown: true, // Face down on board until resolution!
+          isFaceDown: true,
           isRevealed: false,
         });
 
@@ -372,31 +528,27 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         nextState.pendingVoidChoiceSeat = null;
 
         nextState.lastActionMessage = `${player.name} placed a gamble FLIP card face-down!`;
-        logGameEvent(nextState.id, player.id, 'FLIPPED_GAMBLE_CARD_PLAYED', { cardId: cardToPlay.id });
-
         checkAndResolveTrick(nextState);
         break;
       }
 
-      // Check if player has leadSuit in hand
+      // Check follow suit
       if (leadSuit) {
-        const leadSuitCards = player.cards.filter(c => c.suit === leadSuit);
-        
+        const leadSuitCards = player.cards.filter((c) => c.suit === leadSuit);
+
         if (leadSuitCards.length > 0) {
-          // Rule 5: MUST follow lead suit! Player CANNOT use Trump/Flip choice.
           if (cardToPlay.suit !== leadSuit) {
             throw new Error(`Illegal card play! Must follow lead suit ${SUIT_SYMBOLS[leadSuit]}`);
           }
         } else {
-          // Rule 6: ZERO cards matching lead suit -> Player MUST receive [USE TRUMP] vs [FLIP A CARD] decision panel!
           nextState.pendingVoidChoiceSeat = action.seat;
           nextState.lastActionMessage = `${player.name} has no ${SUIT_SYMBOLS[leadSuit]}. Choose USE TRUMP or FLIP A CARD.`;
           return nextState;
         }
       }
 
-      // Normal card play (following suit or leading trick)
-      player.cards = sortPlayerHand(player.cards.filter(c => c.id !== cardToPlay.id));
+      // Normal card play
+      player.cards = sortPlayerHand(player.cards.filter((c) => c.id !== cardToPlay.id));
       player.cardCount = player.cards.length;
 
       nextState.currentTrick.cardsPlayed.push({
@@ -408,9 +560,49 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       });
 
       nextState.lastActionMessage = `${player.name} played ${cardToPlay.rank} of ${cardToPlay.suit}`;
-      logGameEvent(nextState.id, player.id, 'CARD_PLAYED', { cardId: cardToPlay.id, suit: cardToPlay.suit });
-
       checkAndResolveTrick(nextState);
+      break;
+    }
+
+    case 'DECLARE_CAPS': {
+      if (nextState.status !== 'PLAYING') {
+        throw new Error('Caps can only be declared during active play');
+      }
+
+      const player = nextState.players[action.seat];
+      const isBeforeTrick7 = (nextState.currentTrick?.trickNumber || 1) < 7;
+
+      nextState.capsDeclared = true;
+      nextState.capsDeclaringSeat = action.seat;
+      nextState.capsDeclaredBeforeTrick7 = isBeforeTrick7;
+
+      nextState.lastActionMessage = `⭐ ${player.name} DECLARED CAPS! (${isBeforeTrick7 ? 'Before Trick 7' : 'After Trick 7'})`;
+      break;
+    }
+
+    case 'DECLARE_SPOILT_TRUMPS': {
+      if (nextState.status !== 'PLAYING') {
+        throw new Error('Spoilt Trumps can only be declared during active play');
+      }
+
+      const player = nextState.players[action.seat];
+
+      // Check if trump maker's opponents hold 0 trumps
+      const bidderTeam = (nextState.bidding.bidderSeat ?? 0) % 2;
+      const opponentPlayers = nextState.players.filter((p) => p.team !== bidderTeam);
+      const opponentTrumpsCount = opponentPlayers.reduce(
+        (sum, p) => sum + p.cards.filter((c) => c.suit === nextState.trumpSuit).length,
+        0
+      );
+
+      if (opponentTrumpsCount === 0) {
+        nextState.isSpoiltTrumpsDeclared = true;
+        nextState.spoiltTrumpsDeclaringSeat = action.seat;
+        nextState.status = 'ROUND_COMPLETE';
+        nextState.lastActionMessage = `🚫 SPOILT TRUMPS declared by ${player.name}! Opponents hold 0 trumps. Hand cancelled, NO SCORE!`;
+      } else {
+        throw new Error('Cannot declare Spoilt Trumps: Opponents still hold trumps!');
+      }
       break;
     }
 
@@ -422,7 +614,30 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       nextState.tricks.push(nextState.currentTrick);
       const prevWinnerSeat = nextState.currentTrick.winnerSeat!;
 
-      if (nextState.currentTrick.trickNumber < 8) {
+      // Check Caps failure (if team declared caps and lost trick)
+      if (nextState.capsDeclared && nextState.capsDeclaringSeat !== undefined) {
+        const declaringTeam = nextState.capsDeclaringSeat % 2;
+        const winnerTeam = prevWinnerSeat % 2;
+        if (declaringTeam !== winnerTeam) {
+          nextState.capsTrickLost = true;
+        }
+      }
+
+      // Rule 26: 250+ bid forces reveal of trump at end of Trick 1
+      if (nextState.currentTrick.trickNumber === 1 && (nextState.bidding.currentHighBid >= 250 || nextState.isPartnerCloseCaps)) {
+        nextState.trumpRevealed = true;
+        if (nextState.trumpCard && nextState.bidding.bidderSeat !== null) {
+          // Return indicator to maker's hand for trick 2+
+          const maker = nextState.players[nextState.bidding.bidderSeat];
+          if (!maker.cards.some((c) => c.id === nextState.trumpCard!.id)) {
+            maker.cards.push(nextState.trumpCard);
+            maker.cards = sortPlayerHand(maker.cards);
+            maker.cardCount = maker.cards.length;
+          }
+        }
+      }
+
+      if (nextState.currentTrick.trickNumber < 8 && !nextState.capsTrickLost) {
         nextState.currentTrick = {
           trickNumber: nextState.currentTrick.trickNumber + 1,
           leadSeat: prevWinnerSeat,
@@ -432,30 +647,35 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         nextState.currentTurnSeat = prevWinnerSeat;
         nextState.status = 'PLAYING';
       } else {
+        // Round End
         nextState.currentTrick = null;
         const result = evaluateRoundResult(
           nextState.teamAScore,
           nextState.teamBScore,
           nextState.bidding.bidderSeat ?? 0,
-          nextState.bidding.currentHighBid
+          nextState.bidding.currentHighBid,
+          nextState.isPartnerCloseCaps || false,
+          nextState.capsDeclared || false,
+          nextState.capsDeclaredBeforeTrick7 || false,
+          nextState.capsTrickLost || false
         );
 
         if (nextState.honestGame) {
           const honestResult = evaluateHonestGameResult(nextState);
           nextState.honestGameResult = honestResult;
-          logGameEvent(nextState.id, 'server', 'HONEST_GAME_RESULT', {
-            result: honestResult,
-            teamAScore: nextState.teamAScore,
-            teamBScore: nextState.teamBScore,
-          });
         }
 
         nextState.winningTeam = result.winningTeam;
-        nextState.teamAMatchPoints += result.matchPointsAwarded.teamA;
-        nextState.teamBMatchPoints += result.matchPointsAwarded.teamB;
-        nextState.status = 'GAME_COMPLETE';
+        nextState.teamATokens = Math.max(0, Math.min(22, nextState.teamATokens + result.tokensAwarded.teamA));
+        nextState.teamBTokens = Math.max(0, Math.min(22, nextState.teamBTokens + result.tokensAwarded.teamB));
+
+        if (nextState.teamATokens >= 22 || nextState.teamBTokens >= 22 || nextState.teamATokens === 0 || nextState.teamBTokens === 0) {
+          nextState.status = 'GAME_COMPLETE';
+        } else {
+          nextState.status = 'ROUND_COMPLETE';
+        }
+
         nextState.lastActionMessage = result.summary;
-        logGameEvent(nextState.id, 'server', 'ROUND_COMPLETED', { winningTeam: result.winningTeam });
       }
       break;
     }
@@ -468,18 +688,22 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       nextState.dealerSeat = newDealer;
       nextState.currentTurnSeat = (newDealer + 1) % 4;
       nextState.deck = remainingDeck;
-      nextState.status = 'BIDDING';
+      nextState.status = 'FOUR_CARD_BIDDING';
       nextState.bidding = {
         currentHighBid: 0,
         bidderSeat: null,
         passes: [],
         isComplete: false,
+        bidStage: '4_CARD',
       };
       nextState.trumpSuit = null;
       nextState.trumpMode = 'CLOSED';
       nextState.trumpCard = null;
       nextState.trumpRevealed = false;
       nextState.isPccDeclared = false;
+      nextState.isPartnerCloseCaps = false;
+      nextState.capsDeclared = false;
+      nextState.isSpoiltTrumpsDeclared = false;
       nextState.pendingVoidChoiceSeat = null;
       nextState.pendingFlipSelectSeat = null;
       nextState.tricks = [];
@@ -491,9 +715,10 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       for (let i = 0; i < 4; i++) {
         nextState.players[i].cards = sortPlayerHand(hands[i]);
         nextState.players[i].cardCount = 4;
+        nextState.players[i].bidTurnsCount = 0;
       }
 
-      nextState.lastActionMessage = `Rematch started! New dealer is ${nextState.players[newDealer].name}. Closed Trump Priority active.`;
+      nextState.lastActionMessage = `Rematch started! New dealer is ${nextState.players[newDealer].name}.`;
       break;
     }
   }
@@ -501,13 +726,31 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
   return nextState;
 }
 
+function startTrickPlay(state: GameEngineState) {
+  const leadSeat = state.isPartnerCloseCaps && state.partnerCloseCapsSeat !== undefined
+    ? state.partnerCloseCapsSeat
+    : (state.dealerSeat + 1) % 4;
+
+  state.status = 'PLAYING';
+  state.currentTurnSeat = leadSeat;
+  state.currentTrick = {
+    trickNumber: 1,
+    leadSeat,
+    cardsPlayed: [],
+    points: 0,
+  };
+
+  state.lastActionMessage = `Trump selected (${state.trumpCard?.rank}${SUIT_SYMBOLS[state.trumpSuit!]} - ${state.trumpMode}). Trick 1 begins!`;
+}
+
 function checkAndResolveTrick(state: GameEngineState) {
   if (!state.currentTrick) return;
 
-  if (state.currentTrick.cardsPlayed.length === 4) {
+  const activePlayersCount = state.isPartnerCloseCaps ? 3 : 4;
+
+  if (state.currentTrick.cardsPlayed.length === activePlayersCount) {
     const leadSuit = state.currentTrick.cardsPlayed[0].card.suit;
 
-    // Evaluate trick winner with secret comparison logic
     const winningPlayedCard = determineTrickWinner(
       state.currentTrick.cardsPlayed,
       leadSuit,
@@ -515,26 +758,21 @@ function checkAndResolveTrick(state: GameEngineState) {
       state.trumpRevealed
     );
 
-    // EXACT REVEAL & FLIP ANIMATION RULES:
     if (state.currentTrick.actualTrumpUsed) {
-      // RULE 8 & 9: Reveal ACTUAL TRUMP after all 4 cards placed. It flips once and STAYS FACE-UP!
-      const actualTrump = state.currentTrick.cardsPlayed.find(pc => pc.isActualTrump);
+      const actualTrump = state.currentTrick.cardsPlayed.find((pc) => pc.isActualTrump);
       if (actualTrump) {
         actualTrump.isFaceDown = false;
         actualTrump.isRevealed = true;
       }
-      state.trumpRevealed = true; // Actual trump now face-up
+      state.trumpRevealed = true;
     } else if (state.currentTrick.flippedGambleUsed) {
-      // RULE 10, 11, 13, 14: Reveal ONLY the flipped gamble card. TRUMP REMAINS COMPLETELY HIDDEN!
-      const flippedCard = state.currentTrick.cardsPlayed.find(pc => pc.isFlippedGamble);
+      const flippedCard = state.currentTrick.cardsPlayed.find((pc) => pc.isFlippedGamble);
       if (flippedCard) {
         flippedCard.isFaceDown = false;
         flippedCard.isRevealed = true;
       }
-      // TRUMP STAYS HIDDEN! Do NOT reveal trumpCard!
     } else {
-      // Normal play: reveal all face-down played cards
-      state.currentTrick.cardsPlayed.forEach(pc => {
+      state.currentTrick.cardsPlayed.forEach((pc) => {
         pc.isFaceDown = false;
         pc.isRevealed = true;
       });
@@ -553,9 +791,18 @@ function checkAndResolveTrick(state: GameEngineState) {
 
     state.status = 'TRICK_COMPLETE';
     state.lastActionMessage = `${state.players[winningPlayedCard.seat].name} won trick ${state.currentTrick.trickNumber} (+${trickPts} pts)!`;
-    logGameEvent(state.id, 'server', 'TRICK_COMPLETED', { trickNumber: state.currentTrick.trickNumber, winnerSeat: winningPlayedCard.seat });
   } else {
-    state.currentTurnSeat = (state.currentTurnSeat + 1) % 4;
+    let nextSeat = (state.currentTurnSeat + 1) % 4;
+
+    // Skip partner if Partner Close Caps is active
+    if (state.isPartnerCloseCaps && state.partnerCloseCapsSeat !== undefined) {
+      const partnerSeat = (state.partnerCloseCapsSeat + 2) % 4;
+      if (nextSeat === partnerSeat) {
+        nextSeat = (nextSeat + 1) % 4;
+      }
+    }
+
+    state.currentTurnSeat = nextSeat;
   }
 }
 
@@ -568,3 +815,4 @@ function getNextActiveBidderSeat(state: GameEngineState): number {
   }
   return nextSeat;
 }
+

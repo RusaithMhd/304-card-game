@@ -8,6 +8,7 @@ import { useVoiceStore } from '../../stores/useVoiceStore';
 import { CardHand } from './CardHand';
 import { PlayingCard } from '../cards/PlayingCard';
 import { BiddingModal } from './BiddingModal';
+import { TrumpSelectorModal } from './TrumpSelectorModal';
 import { TrumpCardSelectorConfirmModal } from './TrumpCardSelectorConfirmModal';
 import { MatchResultsModal } from './MatchResultsModal';
 import { FloatingReactions } from '../chat/FloatingReactions';
@@ -18,7 +19,7 @@ import { HonestGameModal } from './HonestGameModal';
 import { canDeclarePCC } from '../../lib/game-engine/pccRules';
 import { canDeclareHonestGame, canViewTrumpCard } from '../../lib/game-engine/honestGameRules';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../../lib/game-engine/cardValues';
-import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic, ShieldAlert, Sparkles, Coins } from 'lucide-react';
 import { PlayerState, PlayedCard, Card } from '../../lib/game-engine/types';
 
 interface CardTableProps {
@@ -53,7 +54,13 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const isAuthorizedToSeeTrump = canViewTrumpCard(gameState, localSeat);
   const isPendingVoidChoiceForMe = gameState.pendingVoidChoiceSeat === localSeat;
   const isPendingFlipSelectForMe = gameState.pendingFlipSelectSeat === localSeat;
-  const isMyTurnToSelectTrump = gameState.status === 'TRUMP_SELECTION' && gameState.bidding.bidderSeat === localSeat;
+
+  const isBiddingStage = gameState.status === 'FOUR_CARD_BIDDING' || gameState.status === 'EIGHT_CARD_BIDDING' || gameState.status === 'REDEAL_CHECK';
+  const isMyTurnToBid = isBiddingStage && gameState.currentTurnSeat === localSeat;
+  const isRedealEligibleForMe = gameState.status === 'REDEAL_CHECK' && gameState.redealEligibleSeat === localSeat;
+
+  const isTrumpSelectionStage = gameState.status === 'TRUMP_SELECTION_4' || gameState.status === 'TRUMP_REPLACEMENT_8';
+  const isMyTurnToSelectTrump = isTrumpSelectionStage && gameState.currentTurnSeat === localSeat;
   const proposedTrumpCard = isMyTurnToSelectTrump && selectedCardId ? localPlayer.cards.find(c => c.id === selectedCardId) : null;
 
   const leadSuit = gameState.currentTrick?.cardsPlayed.length
@@ -72,6 +79,8 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
     return gameState.currentTrick.cardsPlayed.find((pc) => pc.seat === seatNumber);
   };
 
+  const isPartnerHighBidderIn8Card = gameState.status === 'EIGHT_CARD_BIDDING' && gameState.bidding.bidderSeat !== null && (gameState.bidding.bidderSeat % 2 === localPlayer.team);
+
   return (
     <div className="relative w-full min-h-screen bg-slate-950 flex flex-col items-center justify-between overflow-hidden select-none">
       {/* Background Ambient Glow */}
@@ -82,7 +91,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
       {/* 1. TOP HEADER NAVIGATION & SCOREBOARD */}
       <header className="relative z-30 w-full px-4 py-3 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-2">
-        {/* Left: Back Button, Room Title, & Honest Play Badge */}
+        {/* Left: Back Button, Room Title, & Token Counter */}
         <div className="flex items-center gap-3">
           <button
             onClick={onBackToLobby}
@@ -95,31 +104,45 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-amber-400 tracking-widest uppercase block">304 MATCH</span>
-              {/* Honest Play Trust Indicator */}
               <span className="px-2 py-0.2 rounded-full bg-emerald-500/10 border border-emerald-400/40 text-emerald-300 font-extrabold text-[9px] flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                <span>HONEST PLAY ACTIVE</span>
+                <span>SRI LANKAN 304 RULES</span>
               </span>
             </div>
             <span className="text-xs font-bold text-slate-200">ROOM {gameState.roomId}</span>
           </div>
         </div>
 
-        {/* Center: Team Score Pill & PCC / Honest Game Button */}
+        {/* Center: Team Score & Token Transfer Display */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-4 bg-slate-900/90 border border-slate-700/80 px-4 py-1.5 rounded-full shadow-lg">
+          {/* Card Points Pill */}
+          <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-700/80 px-4 py-1.5 rounded-full shadow-lg">
             <div className="text-right">
-              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-tighter block">TEAM A</span>
+              <span className="text-[9px] font-extrabold text-amber-400 uppercase tracking-tighter block">TEAM A (PTS)</span>
               <span className="text-sm font-black text-amber-400">{gameState.teamAScore}</span>
             </div>
 
             <span className="text-slate-600 font-bold text-xs">:</span>
 
             <div className="text-left">
-              <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-tighter block">TEAM B</span>
+              <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-tighter block">TEAM B (PTS)</span>
               <span className="text-sm font-black text-emerald-400">{gameState.teamBScore}</span>
             </div>
           </div>
+
+          {/* Tokens Balance Pill */}
+          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/40 px-3 py-1.5 rounded-full shadow-lg text-xs font-bold text-amber-300">
+            <Coins className="w-4 h-4 text-amber-400" />
+            <span>TOKENS: A ({gameState.teamATokens}) vs B ({gameState.teamBTokens})</span>
+          </div>
+
+          {/* Partner Close Caps Badge */}
+          {gameState.isPartnerCloseCaps && (
+            <span className="px-3 py-1.5 rounded-full bg-purple-500/20 border border-purple-400/50 text-purple-300 font-black text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-md">
+              <Sparkles className="w-3.5 h-3.5 fill-current text-yellow-300" />
+              <span>PARTNER CLOSE CAPS</span>
+            </span>
+          )}
 
           {/* Honest Game Status Badge */}
           {gameState.honestGame && (
@@ -127,6 +150,36 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
               <Flame className="w-3.5 h-3.5 fill-current text-amber-400 animate-pulse" />
               <span>HONEST GAME (250+)</span>
             </span>
+          )}
+
+          {/* Caps Claim Button */}
+          {gameState.status === 'PLAYING' && !gameState.capsDeclared && (
+            <button
+              onClick={() => dispatchAction({ type: 'DECLARE_CAPS', seat: localSeat })}
+              className="px-3 py-1.5 rounded-full bg-purple-600 text-white font-black text-xs shadow-lg hover:brightness-110 flex items-center gap-1 cursor-pointer"
+              title="Declare Caps (Claim all remaining tricks)"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>DECLARE CAPS</span>
+            </button>
+          )}
+
+          {/* Spoilt Trumps Button */}
+          {gameState.status === 'PLAYING' && !gameState.isSpoiltTrumpsDeclared && (
+            <button
+              onClick={() => {
+                try {
+                  dispatchAction({ type: 'DECLARE_SPOILT_TRUMPS', seat: localSeat });
+                } catch (e: any) {
+                  alert(e.message || 'Cannot declare Spoilt Trumps');
+                }
+              }}
+              className="px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
+              title="Declare Spoilt Trumps (Opponents hold 0 trumps)"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+              <span>SPOILT TRUMPS</span>
+            </button>
           )}
 
           {/* PCC Challenge Button */}
@@ -144,7 +197,6 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
         {/* Right: Voice Controls, Sound, Bot AI, & Chat Controls */}
         <div className="flex items-center gap-2">
-          {/* WebRTC Voice Controls Bar */}
           <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
 
           <button
@@ -215,7 +267,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                 <span className="text-2xl sm:text-3xl text-amber-200 font-serif z-10">🂠</span>
               </div>
 
-              {/* SEE TRUMP BUTTON (Only for Authorized Player who placed Trump) */}
+              {/* SEE TRUMP BUTTON */}
               {isAuthorizedToSeeTrump && !gameState.trumpRevealed && (
                 <button
                   onClick={(e) => {
@@ -231,7 +283,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             </div>
           )}
 
-          {/* Open Trump Badge (if open mode or revealed) */}
+          {/* Open Trump Badge */}
           {gameState.trumpSuit && (gameState.trumpMode === 'OPEN' || gameState.trumpRevealed) && (
             <div className="absolute top-4 left-6 sm:top-6 sm:left-10 px-3.5 py-1.5 rounded-2xl bg-slate-950/90 border border-amber-500/50 text-xs font-bold text-slate-200 flex items-center gap-2 shadow-xl z-20">
               <span className="text-[10px] text-amber-400 uppercase tracking-widest">TRUMP:</span>
@@ -351,7 +403,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         </div>
       </main>
 
-      {/* 4. SPECIAL VOID DECISION PANEL OVERLAY (Rule 6: YOU DON'T HAVE [SUIT]) */}
+      {/* 4. SPECIAL VOID DECISION PANEL OVERLAY */}
       <AnimatePresence>
         {isPendingVoidChoiceForMe && (
           <div className="absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-4">
@@ -407,7 +459,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       </footer>
 
       {/* --- MODALS & SHEETS --- */}
-      {gameState.status === 'BIDDING' && (
+      {isBiddingStage && (
         <BiddingModal
           currentHighBid={gameState.bidding.currentHighBid}
           bidderName={
@@ -415,10 +467,35 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
               ? gameState.players[gameState.bidding.bidderSeat]?.name
               : undefined
           }
-          isMyTurnToBid={gameState.currentTurnSeat === localSeat}
+          isMyTurnToBid={isMyTurnToBid}
+          bidStage={gameState.bidding.bidStage || '4_CARD'}
+          isPartnerHighBidder={isPartnerHighBidderIn8Card}
+          playerTurnCount={localPlayer.bidTurnsCount || 0}
+          isRedealEligible={isRedealEligibleForMe}
           onPlaceBid={(amount) => dispatchAction({ type: 'PLACE_BID', seat: localSeat, amount })}
           onPass={() => dispatchAction({ type: 'PASS_BID', seat: localSeat })}
+          onRequestRedeal={() => dispatchAction({ type: 'REQUEST_REDEAL', seat: localSeat })}
+          onSkipRedeal={() => dispatchAction({ type: 'SKIP_REDEAL', seat: localSeat })}
+          onDeclarePartnerCloseCaps={() => dispatchAction({ type: 'DECLARE_PARTNER_CLOSE_CAPS', seat: localSeat })}
           onDeclareHonestGame={isHonestAvailable ? () => setIsHonestConfirmOpen(true) : undefined}
+        />
+      )}
+
+      {/* Physical Card-Based Trump Selector Modal */}
+      {isMyTurnToSelectTrump && (
+        <TrumpSelectorModal
+          isMyTurnToSelect={true}
+          bidderName={localPlayer.name}
+          winningBid={gameState.bidding.currentHighBid}
+          playerCards={localPlayer.cards}
+          onSelectTrumpCard={(cardId, mode) => {
+            dispatchAction({
+              type: 'SELECT_TRUMP',
+              seat: localSeat,
+              cardId,
+              mode,
+            });
+          }}
         />
       )}
 
@@ -431,38 +508,17 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         onCancel={() => setIsHonestConfirmOpen(false)}
       />
 
-      {/* Physical Card-Based Trump Confirmation Modal */}
-      {isMyTurnToSelectTrump && proposedTrumpCard && (
-        <TrumpCardSelectorConfirmModal
-          selectedCard={proposedTrumpCard}
-          winningBid={gameState.bidding.currentHighBid}
-          mode={proposedTrumpMode}
-          onModeChange={setProposedTrumpMode}
-          onChangeCard={() => setSelectedCard(null)}
-          onConfirmTrump={() => {
-            dispatchAction({
-              type: 'SELECT_TRUMP',
-              seat: localSeat,
-              cardId: proposedTrumpCard.id,
-              suit: proposedTrumpCard.suit,
-              mode: proposedTrumpMode,
-            });
-            setSelectedCard(null);
-          }}
-        />
-      )}
-
       {/* Opponent Trump Selection Waiting Banner */}
-      {gameState.status === 'TRUMP_SELECTION' && !isMyTurnToSelectTrump && (
+      {isTrumpSelectionStage && !isMyTurnToSelectTrump && (
         <div className="fixed inset-x-4 top-20 z-40 max-w-sm mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-2xl text-center">
           <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">Trump Selection</h4>
           <p className="text-slate-200 text-sm font-medium">
-            {gameState.players[gameState.bidding.bidderSeat ?? 0]?.name} is picking a physical card from their hand as Trump...
+            {gameState.players[gameState.currentTurnSeat]?.name} is selecting a physical card as Trump...
           </p>
         </div>
       )}
 
-      {gameState.status === 'GAME_COMPLETE' && (
+      {(gameState.status === 'ROUND_COMPLETE' || gameState.status === 'GAME_COMPLETE') && (
         <MatchResultsModal
           gameState={gameState}
           onRematch={() => dispatchAction({ type: 'REMATCH' })}
@@ -480,7 +536,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   );
 };
 
-/* Sub-component: Player Avatar Seat Badge with Voice Indicator */
+/* Sub-component: Player Avatar Seat Badge */
 interface PlayerAvatarSeatProps {
   player: PlayerState;
   isTurn: boolean;
@@ -522,7 +578,6 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
           />
         </div>
 
-        {/* Live Speaking Indicator Mic Icon */}
         {isSpeaking && (
           <span className="absolute -top-1 -left-1 p-1 rounded-full bg-emerald-500 text-slate-950 shadow-md animate-bounce">
             <Mic className="w-3 h-3 stroke-[3]" />
@@ -553,3 +608,4 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
     </div>
   );
 };
+

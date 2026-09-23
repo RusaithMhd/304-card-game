@@ -14,8 +14,14 @@ export function canDeclareHonestGame(gameState: GameEngineState, seat: number): 
     return false;
   }
 
-  // 3. Allowed during BIDDING, TRUMP_SELECTION, or early PLAYING state before first card
-  if (gameState.status === 'BIDDING' || gameState.status === 'TRUMP_SELECTION') {
+  // 3. Allowed during any BIDDING or TRUMP_SELECTION state, or early PLAYING state before first card
+  if (
+    gameState.status === 'FOUR_CARD_BIDDING' ||
+    gameState.status === 'EIGHT_CARD_BIDDING' ||
+    gameState.status === 'TRUMP_SELECTION_4' ||
+    gameState.status === 'TRUMP_REPLACEMENT_8' ||
+    gameState.status === 'REDEAL_CHECK'
+  ) {
     return true;
   }
 
@@ -65,3 +71,4 @@ export function evaluateHonestGameResult(state: GameEngineState): 'SUCCESS' | 'F
 
   return declaringTeamScore >= commitment ? 'SUCCESS' : 'FAILED';
 }
+

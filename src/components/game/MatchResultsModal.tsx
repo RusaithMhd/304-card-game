@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { GameEngineState } from '../../lib/game-engine/types';
-import { Trophy, RotateCcw, Home, Sparkles } from 'lucide-react';
+import { Trophy, RotateCcw, Home, Sparkles, Coins } from 'lucide-react';
 import { evaluateRoundResult } from '../../lib/game-engine/scoring';
 
 interface MatchResultsModalProps {
@@ -22,7 +22,11 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
     gameState.teamAScore,
     gameState.teamBScore,
     gameState.bidding.bidderSeat ?? 0,
-    gameState.bidding.currentHighBid
+    gameState.bidding.currentHighBid,
+    gameState.isPartnerCloseCaps || false,
+    gameState.capsDeclared || false,
+    gameState.capsDeclaredBeforeTrick7 || false,
+    gameState.capsTrickLost || false
   );
 
   useEffect(() => {
@@ -53,9 +57,17 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
         </div>
 
         <h2 className="text-2xl font-black text-amber-400 uppercase tracking-wide mb-1">
-          MATCH COMPLETED
+          {gameState.status === 'GAME_COMPLETE' ? 'MATCH COMPLETED' : 'ROUND COMPLETED'}
         </h2>
-        <p className="text-xs text-slate-400 mb-6">{result.summary}</p>
+        <p className="text-xs text-slate-400 mb-4">{result.summary}</p>
+
+        {/* Token Transfer Summary Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 font-extrabold text-xs mb-4 shadow-md">
+          <Coins className="w-4 h-4 text-amber-400" />
+          <span>
+            TOKEN TRANSFERS: Team A ({result.tokensAwarded.teamA > 0 ? `+${result.tokensAwarded.teamA}` : result.tokensAwarded.teamA}) | Team B ({result.tokensAwarded.teamB > 0 ? `+${result.tokensAwarded.teamB}` : result.tokensAwarded.teamB})
+          </span>
+        </div>
 
         {/* Marley / Cap Bonus Badge */}
         {result.isCapOrMarley && (
@@ -95,7 +107,8 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               TEAM A (South & North)
             </span>
-            <span className="text-3xl font-black text-slate-100 block mb-2">{gameState.teamAScore}</span>
+            <span className="text-3xl font-black text-slate-100 block mb-1">{gameState.teamAScore} Pts</span>
+            <span className="text-xs font-bold text-amber-400 block mb-2">{gameState.teamATokens} Tokens</span>
             <div className="flex justify-center -space-x-2">
               {teamAPlayers.map((p) => (
                 <img
@@ -120,7 +133,8 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               TEAM B (East & West)
             </span>
-            <span className="text-3xl font-black text-slate-100 block mb-2">{gameState.teamBScore}</span>
+            <span className="text-3xl font-black text-slate-100 block mb-1">{gameState.teamBScore} Pts</span>
+            <span className="text-xs font-bold text-emerald-400 block mb-2">{gameState.teamBTokens} Tokens</span>
             <div className="flex justify-center -space-x-2">
               {teamBPlayers.map((p) => (
                 <img
@@ -150,10 +164,11 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
             className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>PLAY AGAIN (REMATCH)</span>
+            <span>PLAY AGAIN (NEXT DEAL)</span>
           </button>
         </div>
       </motion.div>
     </div>
   );
 };
+

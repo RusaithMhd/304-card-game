@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MIN_BID, MAX_BID, BID_STEP } from '../../lib/game-engine/bidding';
+import { MIN_BID, MIN_BID_8_CARD, MAX_BID, BID_STEP, getMinimumBidForPlayer } from '../../lib/game-engine/bidding';
+import { RotateCcw, ShieldAlert, Sparkles } from 'lucide-react';
 
 interface BiddingModalProps {
   currentHighBid: number;
   bidderName?: string;
   isMyTurnToBid: boolean;
+  bidStage?: '4_CARD' | '8_CARD';
+  isPartnerHighBidder?: boolean;
+  playerTurnCount?: number;
+  isRedealEligible?: boolean;
   onPlaceBid: (amount: number) => void;
   onPass: () => void;
+  onRequestRedeal?: () => void;
+  onSkipRedeal?: () => void;
+  onDeclarePartnerCloseCaps?: () => void;
   onDeclareHonestGame?: () => void;
 }
 
@@ -17,17 +25,66 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
   currentHighBid,
   bidderName,
   isMyTurnToBid,
+  bidStage = '4_CARD',
+  isPartnerHighBidder = false,
+  playerTurnCount = 0,
+  isRedealEligible = false,
   onPlaceBid,
   onPass,
+  onRequestRedeal,
+  onSkipRedeal,
+  onDeclarePartnerCloseCaps,
   onDeclareHonestGame,
 }) => {
-  const minAllowed = currentHighBid > 0 ? Math.ceil((currentHighBid + 1) / BID_STEP) * BID_STEP : MIN_BID;
+  const minAllowed = getMinimumBidForPlayer(bidStage, currentHighBid, isPartnerHighBidder, playerTurnCount);
   const [selectedBid, setSelectedBid] = useState<number>(minAllowed);
+
+  useEffect(() => {
+    setSelectedBid(minAllowed);
+  }, [minAllowed]);
+
+  if (isRedealEligible) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="fixed inset-x-4 top-20 z-50 max-w-md mx-auto bg-slate-900/95 backdrop-blur-xl border border-amber-500/40 rounded-2xl p-5 shadow-2xl text-center text-slate-100"
+      >
+        <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+          <span className="text-amber-400 font-bold text-xs uppercase tracking-widest flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 text-amber-400" />
+            <span>Weak Hand Redeal Option</span>
+          </span>
+          <span className="text-xs text-slate-400">Hand &lt; 15 Pts</span>
+        </div>
+        <p className="text-xs text-slate-300 mb-4">
+          You are the player to the dealer's right and your initial 4 cards total less than 15 points. You may demand a redeal before making a bid or pass!
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onSkipRedeal}
+            className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition-all cursor-pointer"
+          >
+            CONTINUE WITH HAND
+          </button>
+          <button
+            onClick={onRequestRedeal}
+            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>REQUEST REDEAL</span>
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   if (!isMyTurnToBid) {
     return (
       <div className="fixed inset-x-4 top-20 z-40 max-w-sm mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-2xl text-center">
-        <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">Bidding Phase</h4>
+        <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">
+          {bidStage === '8_CARD' ? '8-Card Bidding Round' : 'Initial 4-Card Bidding'}
+        </h4>
         <p className="text-slate-200 text-sm font-medium">
           Waiting for bidding... {currentHighBid > 0 ? `Current Bid: ${currentHighBid} (${bidderName})` : 'No bids placed yet.'}
         </p>
@@ -36,7 +93,7 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
   }
 
   const bidOptions: number[] = [];
-  for (let b = Math.max(MIN_BID, minAllowed); b <= MAX_BID; b += BID_STEP) {
+  for (let b = minAllowed; b <= MAX_BID; b += BID_STEP) {
     bidOptions.push(b);
   }
 
@@ -47,42 +104,64 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
       className="fixed inset-x-4 top-20 z-50 max-w-md mx-auto bg-slate-900/95 backdrop-blur-xl border border-amber-500/40 rounded-2xl p-5 shadow-2xl text-center text-slate-100"
     >
       <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
-        <span className="text-amber-400 font-bold text-xs uppercase tracking-widest">Your Turn To Bid</span>
+        <span className="text-amber-400 font-bold text-xs uppercase tracking-widest">
+          {bidStage === '8_CARD' ? '8-Card Bidding Turn' : 'Initial 4-Card Bidding Turn'}
+        </span>
         <span className="text-xs text-slate-400 font-medium">Target: 304 Points</span>
       </div>
 
       <p className="text-xs text-slate-300 mb-3">
         {currentHighBid > 0
           ? `Current highest bid is ${currentHighBid} by ${bidderName}.`
-          : 'Place an opening bid (minimum 160) or Pass.'}
+          : bidStage === '8_CARD'
+          ? 'Place an 8-card bid (minimum 250) or Pass.'
+          : 'Place an opening 4-card bid (minimum 160) or Pass.'}
       </p>
 
-      {/* Honest Game Special Bid Option */}
-      {onDeclareHonestGame && (
-        <button
-          onClick={onDeclareHonestGame}
-          className="w-full mb-3 py-2 rounded-xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider hover:brightness-110 shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-        >
-          <span>🔥 DECLARE HONEST GAME (250+ COMMITMENT)</span>
-        </button>
-      )}
+      {/* Special Bid Buttons */}
+      <div className="flex flex-col gap-2 mb-3">
+        {bidStage === '8_CARD' && onDeclarePartnerCloseCaps && (
+          <button
+            onClick={onDeclarePartnerCloseCaps}
+            className="w-full py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white font-black text-xs uppercase tracking-wider hover:brightness-110 shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <Sparkles className="w-4 h-4 text-yellow-300" />
+            <span>🔥 DECLARE PARTNER CLOSE CAPS (304)</span>
+          </button>
+        )}
+
+        {onDeclareHonestGame && (
+          <button
+            onClick={onDeclareHonestGame}
+            className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs uppercase tracking-wider hover:brightness-110 shadow-lg flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <span>🔥 DECLARE HONEST GAME (250+ COMMITMENT)</span>
+          </button>
+        )}
+      </div>
 
       {/* Bid selector grid */}
-      <div className="grid grid-cols-4 gap-2 mb-4 max-h-36 overflow-y-auto pr-1">
-        {bidOptions.map((amount) => (
-          <button
-            key={amount}
-            onClick={() => setSelectedBid(amount)}
-            className={`py-2 rounded-xl font-bold text-xs transition-all ${
-              selectedBid === amount
-                ? 'bg-amber-500 text-slate-950 shadow-md scale-105 ring-2 ring-amber-300'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {amount}
-          </button>
-        ))}
-      </div>
+      {isPartnerHighBidder && bidStage === '8_CARD' ? (
+        <div className="p-3 mb-3 bg-slate-950/80 rounded-xl border border-slate-800 text-amber-400 text-xs font-bold">
+          Your partner holds the highest bid ({currentHighBid}). Under 8-card bidding rules, you must pass!
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-2 mb-4 max-h-36 overflow-y-auto pr-1">
+          {bidOptions.map((amount) => (
+            <button
+              key={amount}
+              onClick={() => setSelectedBid(amount)}
+              className={`py-2 rounded-xl font-bold text-xs transition-all ${
+                selectedBid === amount
+                  ? 'bg-amber-500 text-slate-950 shadow-md scale-105 ring-2 ring-amber-300'
+                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+              }`}
+            >
+              {amount}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <button
@@ -92,13 +171,16 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
           PASS
         </button>
 
-        <button
-          onClick={() => onPlaceBid(selectedBid)}
-          className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer"
-        >
-          BID {selectedBid}
-        </button>
+        {!(isPartnerHighBidder && bidStage === '8_CARD') && (
+          <button
+            onClick={() => onPlaceBid(selectedBid)}
+            className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer"
+          >
+            BID {selectedBid}
+          </button>
+        )}
       </div>
     </motion.div>
   );
 };
+

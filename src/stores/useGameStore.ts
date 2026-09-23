@@ -121,7 +121,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const state = get().gameState;
       if (!state || state.currentTurnSeat !== currentTurn) return;
 
-      if (state.status === 'BIDDING') {
+      if (state.status === 'REDEAL_CHECK') {
+        dispatchAction({ type: 'SKIP_REDEAL', seat: currentTurn });
+      } else if (state.status === 'FOUR_CARD_BIDDING' || state.status === 'EIGHT_CARD_BIDDING') {
         // Bot bidding strategy
         const highBid = state.bidding.currentHighBid;
         if (!state.honestGame && Math.random() > 0.8) {
@@ -131,7 +133,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         } else {
           dispatchAction({ type: 'PASS_BID', seat: currentTurn });
         }
-      } else if (state.status === 'TRUMP_SELECTION') {
+      } else if (state.status === 'TRUMP_SELECTION_4' || state.status === 'TRUMP_REPLACEMENT_8') {
         // Winning bidder selects a physical card from their hand
         const hand = botPlayer.cards;
         if (hand.length > 0) {
@@ -144,7 +146,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             mode: 'CLOSED',
           });
         }
-      } else if (state.status === 'PLAYING') {
+      }
+ else if (state.status === 'PLAYING') {
         // Handle pending void choice for Bot
         if (state.pendingVoidChoiceSeat === currentTurn) {
           const option = Math.random() > 0.5 ? 'USE_TRUMP' : 'FLIP_CARD';
