@@ -20,7 +20,7 @@ interface ChatStore {
   unreadCount: number;
   isChatOpen: boolean;
   activeReactions: FloatingReaction[];
-  sendMessage: (senderId: string, senderName: string, senderAvatar: string, text: string) => void;
+  sendMessage: (senderId?: string, senderName?: string, senderAvatar?: string, text?: string) => void;
   sendReaction: (seat: number, emoji: string) => void;
   syncRoomMessages: (incoming: ChatMessage[]) => void;
   toggleChat: (isOpen?: boolean) => void;
@@ -38,6 +38,7 @@ function getActiveRoomCode(): string | null {
     if (rawRoom) {
       const parsed = JSON.parse(rawRoom);
       if (parsed?.roomCode) return parsed.roomCode;
+      if (parsed?.room_code) return parsed.room_code;
     }
   } catch (e) {}
   return null;
@@ -59,13 +60,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeReactions: [],
 
   sendMessage: (senderId, senderName, senderAvatar, text) => {
-    if (!text.trim()) return;
+    if (!text || !text.trim()) return;
+
+    const finalSenderId = senderId || `usr_${Date.now()}`;
+    const finalSenderName = senderName || 'Player';
+    const finalSenderAvatar = senderAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(finalSenderName)}`;
 
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      sender_id: senderId,
-      sender_name: senderName,
-      sender_avatar: senderAvatar,
+      sender_id: finalSenderId,
+      sender_name: finalSenderName,
+      sender_avatar: finalSenderAvatar,
       message: text.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
@@ -96,7 +101,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   sendReaction: (seat, emoji) => {
-    const reactionId = `react_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const reactionId = `react_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newReaction: FloatingReaction = { id: reactionId, seat, emoji };
 
     set((state) => ({

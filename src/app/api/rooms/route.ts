@@ -311,8 +311,8 @@ export async function POST(req: Request) {
 
       if (!room) {
         return NextResponse.json(
-          { success: false, error: { code: 'ROOM_NOT_FOUND', message: `Room code "${cleanCode}" not found.` } },
-          { status: 404 }
+          { success: false, error: { code: 'ROOM_NOT_FOUND', message: `Room code "${cleanCode}" not found.` }, chatMessages: [] },
+          { status: 200 }
         );
       }
 
@@ -499,20 +499,31 @@ export async function POST(req: Request) {
       }
 
       const cleanCode = roomCode.trim().toUpperCase();
-      const room = serverRoomsMap.get(cleanCode);
-      if (room) {
-        if (!room.chat_messages) room.chat_messages = [];
-        // Avoid duplicate messages
-        if (!room.chat_messages.some((m) => m.id === body.message.id)) {
-          room.chat_messages.push(body.message);
-          if (room.chat_messages.length > 50) {
-            room.chat_messages = room.chat_messages.slice(-50);
-          }
-          serverRoomsMap.set(cleanCode, room);
-        }
-        return NextResponse.json({ success: true, chatMessages: room.chat_messages });
+      let room = serverRoomsMap.get(cleanCode);
+      if (!room) {
+        room = {
+          id: `room_${cleanCode}`,
+          room_code: cleanCode,
+          host_id: body.message?.sender_id || 'system',
+          status: 'playing',
+          max_players: 4,
+          created_at: new Date().toISOString(),
+          members: [],
+          chat_messages: [],
+        };
+        serverRoomsMap.set(cleanCode, room);
       }
-      return NextResponse.json({ success: true, chatMessages: [] });
+
+      if (!room.chat_messages) room.chat_messages = [];
+      // Avoid duplicate messages
+      if (!room.chat_messages.some((m) => m.id === body.message.id)) {
+        room.chat_messages.push(body.message);
+        if (room.chat_messages.length > 50) {
+          room.chat_messages = room.chat_messages.slice(-50);
+        }
+        serverRoomsMap.set(cleanCode, room);
+      }
+      return NextResponse.json({ success: true, chatMessages: room.chat_messages });
     }
 
     // 10. LIST ACTIVE WAITING ROOMS

@@ -24,14 +24,20 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({ localSeat }) => {
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim() || !user) return;
-    sendMessage(user.id, user.display_name, user.avatar_url, text);
+    if (!text.trim()) return;
+    const senderId = user?.id || `guest_${Date.now()}`;
+    const senderName = user?.display_name || user?.username || 'Player';
+    const senderAvatar = user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(senderName)}`;
+    sendMessage(senderId, senderName, senderAvatar, text);
     setText('');
   };
 
   const handleQuickReaction = (emoji: string) => {
+    const senderId = user?.id || `guest_${Date.now()}`;
+    const senderName = user?.display_name || user?.username || 'Player';
+    const senderAvatar = user?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(senderName)}`;
     sendReaction(localSeat, emoji);
-    sendMessage(user?.id || 'guest', user?.display_name || 'Player', user?.avatar_url || '', emoji);
+    sendMessage(senderId, senderName, senderAvatar, emoji);
   };
 
   return (

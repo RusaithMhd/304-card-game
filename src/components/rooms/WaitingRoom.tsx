@@ -2,10 +2,14 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, Share2, Users, Bot, Play, ShieldAlert, ArrowLeft, UserMinus } from 'lucide-react';
+import { Copy, Check, Share2, Users, Bot, Play, ShieldAlert, ArrowLeft, UserMinus, MessageSquare } from 'lucide-react';
 import { useRoomStore } from '../../stores/useRoomStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useGameStore } from '../../stores/useGameStore';
+import { useChatStore } from '../../stores/useChatStore';
+import { ChatSheet } from '../chat/ChatSheet';
+import { VoiceControlsBar } from '../voice/VoiceControlsBar';
+import { VoiceSettingsModal } from '../voice/VoiceSettingsModal';
 import { PlayerState } from '../../lib/game-engine/types';
 
 import { supabase } from '../../lib/supabase/client';
@@ -19,8 +23,10 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
   const { currentRoom, togglePlayerReady, fillWithBots, kickPlayer, fetchRoomDetails, startMatch } = useRoomStore();
   const { user } = useAuthStore();
   const { initRoomGame, dispatchAction } = useGameStore();
+  const { unreadCount, toggleChat } = useChatStore();
 
   const [copied, setCopied] = useState(false);
+  const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
 
   React.useEffect(() => {
     if (!currentRoom) {
@@ -136,14 +142,30 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
           <h2 className="text-lg font-black text-slate-100">{currentRoom.name}</h2>
         </div>
 
-        <button
-          onClick={fillWithBots}
-          className="p-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer text-xs font-bold flex items-center gap-1.5"
-          title="Fill remaining empty seats with AI Bots"
-        >
-          <Bot className="w-4 h-4" />
-          <span className="hidden sm:inline">ADD BOTS</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => toggleChat()}
+            className="relative p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+            title="Open Room Chat"
+          >
+            <MessageSquare className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">CHAT</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-rose-600 text-white font-black text-[9px] animate-pulse">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={fillWithBots}
+            className="p-2 rounded-xl bg-amber-500/10 border border-amber-400/40 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer text-xs font-bold flex items-center gap-1.5"
+            title="Fill remaining empty seats with AI Bots"
+          >
+            <Bot className="w-4 h-4" />
+            <span className="hidden sm:inline">ADD BOTS</span>
+          </button>
+        </div>
       </header>
 
       {/* Center 6-Character Room Code Card */}
@@ -270,6 +292,19 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
           </button>
         )}
       </footer>
+
+      {/* ROOM CHAT SHEET */}
+      <ChatSheet localSeat={localPlayer?.seat ?? 0} />
+
+      {/* FLOATING LIVE VOICE CONTROLS BAR */}
+      <div className="fixed bottom-20 right-3 sm:right-6 z-40 shadow-2xl">
+        <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
+      </div>
+      <VoiceSettingsModal
+        isOpen={isVoiceSettingsOpen}
+        onClose={() => setIsVoiceSettingsOpen(false)}
+        players={currentRoom.players}
+      />
     </div>
   );
 };

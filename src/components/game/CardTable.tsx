@@ -133,6 +133,8 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                   ? state.activeReactions
                   : [...state.activeReactions, incomingReaction],
               }));
+            } else if (event.data?.type === 'VOICE_SPEAKING_UPDATE' && event.data.seat !== undefined) {
+              useVoiceStore.getState().setSpeakingState(event.data.seat, !!event.data.isSpeaking);
             }
           }
         };
@@ -476,6 +478,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           setIsLeaveConfirmOpen(true);
         }}
       />
+
+      {/* ROOM CHAT SHEET */}
+      <ChatSheet localSeat={userSeat} />
 
       {/* FLOATING LIVE VOICE CONTROLS BAR */}
       <div className="fixed bottom-20 right-3 sm:right-6 z-40 shadow-2xl">
