@@ -44,6 +44,7 @@ export const GameSettingsDrawer: React.FC<GameSettingsDrawerProps> = ({
   onLeaveMatch,
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const { permissionState, isMuted: isMicMuted, requestMicPermission, toggleMute: toggleMicMute } = useVoiceStore();
 
   const handleCopyRoomCode = () => {
     if (!gameState.roomId) return;
@@ -180,57 +181,52 @@ export const GameSettingsDrawer: React.FC<GameSettingsDrawerProps> = ({
               </div>
 
               {/* 3.5. LIVE VOICE CHAT & TALKING */}
-              {(() => {
-                const { permissionState, isMuted: isMicMuted, requestMicPermission, toggleMute: toggleMicMute } = useVoiceStore();
-                return (
-                  <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-slate-800 text-slate-300">
-                        {permissionState !== 'allowed' ? (
-                          <Mic className="w-5 h-5 text-amber-400" />
-                        ) : isMicMuted ? (
-                          <MicOff className="w-5 h-5 text-rose-400" />
-                        ) : (
-                          <Mic className="w-5 h-5 text-emerald-400 animate-pulse" />
-                        )}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-200">LIVE VOICE TALKING</span>
-                        <span className="text-[10px] text-slate-400">
-                          {permissionState !== 'allowed'
-                            ? 'Microphone disabled'
-                            : isMicMuted
-                            ? 'Microphone muted'
-                            : 'Live voice active'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        if (permissionState !== 'allowed') {
-                          requestMicPermission();
-                        } else {
-                          toggleMicMute();
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
-                        permissionState !== 'allowed'
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                          : isMicMuted
-                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
-                          : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
-                      }`}
-                    >
-                      {permissionState !== 'allowed'
-                        ? 'ENABLE'
-                        : isMicMuted
-                        ? 'UNMUTE'
-                        : 'TALKING'}
-                    </button>
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-slate-800 text-slate-300">
+                    {permissionState !== 'allowed' ? (
+                      <Mic className="w-5 h-5 text-amber-400" />
+                    ) : isMicMuted ? (
+                      <MicOff className="w-5 h-5 text-rose-400" />
+                    ) : (
+                      <Mic className="w-5 h-5 text-emerald-400 animate-pulse" />
+                    )}
                   </div>
-                );
-              })()}
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-200">LIVE VOICE TALKING</span>
+                    <span className="text-[10px] text-slate-400">
+                      {permissionState !== 'allowed'
+                        ? 'Microphone disabled'
+                        : isMicMuted
+                        ? 'Microphone muted'
+                        : 'Live voice active'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (permissionState !== 'allowed') {
+                      requestMicPermission();
+                    } else {
+                      toggleMicMute();
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                    permissionState !== 'allowed'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                      : isMicMuted
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 hover:bg-rose-500/30'
+                      : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/30'
+                  }`}
+                >
+                  {permissionState !== 'allowed'
+                    ? 'ENABLE'
+                    : isMicMuted
+                    ? 'UNMUTE'
+                    : 'TALKING'}
+                </button>
+              </div>
 
               {/* 4. BOT AUTO-PLAY ASSIST (Practice / Testing) */}
               <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
