@@ -477,9 +477,10 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         }}
       />
 
-      {/* CHAT & VOICE PANELS */}
-      <ChatSheet localSeat={userSeat} />
-      <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
+      {/* FLOATING LIVE VOICE CONTROLS BAR */}
+      <div className="fixed bottom-20 right-3 sm:right-6 z-40 shadow-2xl">
+        <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
+      </div>
       <VoiceSettingsModal
         isOpen={isVoiceSettingsOpen}
         onClose={() => setIsVoiceSettingsOpen(false)}

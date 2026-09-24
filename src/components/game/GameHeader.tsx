@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { ArrowLeft, Coins, MessageSquare, Volume2, VolumeX, Settings, Megaphone } from 'lucide-react';
+import { ArrowLeft, Coins, MessageSquare, Volume2, VolumeX, Settings, Megaphone, Mic, MicOff } from 'lucide-react';
 import { GameEngineState } from '../../lib/game-engine/types';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../../lib/game-engine/cardValues';
+import { useVoiceStore } from '../../stores/useVoiceStore';
 
 interface GameHeaderProps {
   gameState: GameEngineState;
@@ -26,6 +27,8 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
 }) => {
   const currentTrickNum = gameState.currentTrick?.trickNumber ?? (gameState.tricks.length + 1);
   const targetLimit = gameState.targetScore ?? 22;
+
+  const { permissionState, isMuted: isMicMuted, requestMicPermission, toggleMute: toggleMicMute } = useVoiceStore();
 
   return (
     <header className="w-full max-w-7xl mx-auto px-2 sm:px-4 py-1.5 sm:py-2 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-2 z-40 select-none">
@@ -100,14 +103,54 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right Section: Action Controls (Sound, Chat, Drawer) */}
+      {/* Right Section: Action Controls (Sound, Live Voice Mic, Chat, Settings) */}
       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <button
           onClick={onToggleMute}
           className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer active:scale-95 shrink-0"
-          title={isMuted ? 'Unmute Audio' : 'Mute Audio'}
+          title={isMuted ? 'Unmute Game SFX' : 'Mute Game SFX'}
         >
           {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+        </button>
+
+        {/* Live Voice Talking Mic Button */}
+        <button
+          onClick={() => {
+            if (permissionState !== 'allowed') {
+              requestMicPermission();
+            } else {
+              toggleMicMute();
+            }
+          }}
+          className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border transition-all cursor-pointer active:scale-95 shrink-0 flex items-center gap-1 ${
+            permissionState !== 'allowed'
+              ? 'bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20'
+              : isMicMuted
+              ? 'bg-rose-500/10 border-rose-500/40 text-rose-400 hover:bg-rose-500/20'
+              : 'bg-emerald-500/15 border-emerald-400/60 text-emerald-300 hover:bg-emerald-500/25 ring-1 ring-emerald-400/40'
+          }`}
+          title={
+            permissionState !== 'allowed'
+              ? 'Enable Live Voice Chat'
+              : isMicMuted
+              ? 'Unmute Mic (Live Talking)'
+              : 'Mute Mic (Live Talking)'
+          }
+        >
+          {permissionState !== 'allowed' ? (
+            <Mic className="w-4 h-4 text-amber-400" />
+          ) : isMicMuted ? (
+            <MicOff className="w-4 h-4 text-rose-400" />
+          ) : (
+            <Mic className="w-4 h-4 text-emerald-400 animate-pulse" />
+          )}
+          <span className="hidden xs:inline text-[10px] font-black uppercase tracking-wider">
+            {permissionState !== 'allowed'
+              ? 'ENABLE MIC'
+              : isMicMuted
+              ? 'MUTED'
+              : 'TALKING'}
+          </span>
         </button>
 
         <button
