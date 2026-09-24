@@ -19,6 +19,13 @@ export async function POST(req: Request) {
         }, { status: 400 });
       }
 
+      if (!password || password.length < 6) {
+        return NextResponse.json({
+          success: false,
+          error: { code: 'WEAK_PASSWORD', message: 'Password must be at least 6 characters' },
+        }, { status: 400 });
+      }
+
       // 2. Try Supabase Auth & DB
       try {
         const { data: existingUser } = await supabaseAdmin
@@ -45,19 +52,43 @@ export async function POST(req: Request) {
         });
 
         if (!authError && authData?.user) {
+          // Create corresponding profile record in DB
+          try {
+            await supabaseAdmin.from('profiles').insert({
+              id: authData.user.id,
+              username: username.toLowerCase(),
+              display_name: displayName || username,
+              role: 'USER',
+              avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=' + username,
+            });
+          } catch (profErr) {
+            console.warn('Profile DB insert warning:', profErr);
+          }
+
           return NextResponse.json({
             success: true,
             user: { id: authData.user.id, email: authData.user.email, username, displayName: displayName || username },
           });
         }
+
+        if (authError) {
+          // If user already registered or specific auth error, return to client
+          if (authError.message.includes('already been registered') || authError.message.includes('already exists')) {
+            return NextResponse.json({
+              success: false,
+              error: { code: 'USER_EXISTS', message: 'An account with this email address already exists' },
+            }, { status: 400 });
+          }
+        }
       } catch (dbErr) {
         console.warn('Supabase DB offline/placeholder, falling back to local user store:', dbErr);
       }
 
-      // 3. Fallback Local Database Response (Zero Crash guarantee)
+      // 3. Fallback Local Database Response (Zero Crash guarantee for dev/demo mode)
       const mockUserId = `usr_${Date.now()}`;
       return NextResponse.json({
         success: true,
+        isFallback: true,
         user: {
           id: mockUserId,
           email: email.toLowerCase(),

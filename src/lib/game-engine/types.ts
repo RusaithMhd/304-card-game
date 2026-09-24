@@ -108,6 +108,12 @@ export interface GameEngineState {
   honestGameStage?: 'AFTER_4' | 'AFTER_8';
   honestGameResult?: 'SUCCESS' | 'FAILED';
   
+  // Target Score & Finish Game State
+  targetScore?: number; // Target score threshold (default 22 for token target)
+  targetReached?: boolean;
+  finishedAt?: number;
+  finishedBy?: string;
+
   tricks: TrickState[];
   currentTrick: TrickState | null;
   
@@ -141,5 +147,6 @@ export type GameAction =
   | { type: 'DECLARE_CAPS'; seat: number }
   | { type: 'DECLARE_SPOILT_TRUMPS'; seat: number }
   | { type: 'NEXT_TRICK' }
+  | { type: 'CONFIRM_FINISH_GAME'; seat: number }
   | { type: 'REMATCH' };
 

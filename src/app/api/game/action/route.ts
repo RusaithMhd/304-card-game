@@ -133,6 +133,10 @@ export async function POST(req: Request) {
         teamBScore: gameRecord.team_b_score,
         teamATokens: gameRecord.team_a_tokens,
         teamBTokens: gameRecord.team_b_tokens,
+        targetScore: gameRecord.target_score ?? 22,
+        targetReached: gameRecord.target_reached ?? false,
+        finishedAt: gameRecord.finished_at ? new Date(gameRecord.finished_at).getTime() : undefined,
+        finishedBy: gameRecord.finished_by,
         teamAMatchPoints: 0,
         teamBMatchPoints: 0,
         winningTeam: gameRecord.winning_team,
@@ -142,6 +146,11 @@ export async function POST(req: Request) {
 
       // 2. Authoritative Validation & Execution
       try {
+        // Race condition protection: If game is already complete, return finished state without throwing
+        if ((gameRecord.status === 'GAME_COMPLETE' || gameRecord.status === 'FINISHED') && action.type === 'CONFIRM_FINISH_GAME') {
+          return returnSanitizedGameState(gameState, seat);
+        }
+
         const nextState = applyGameAction(gameState, action);
 
         // 3. Persist updated game state back to Database
@@ -159,6 +168,10 @@ export async function POST(req: Request) {
             team_b_score: nextState.teamBScore,
             team_a_tokens: nextState.teamATokens,
             team_b_tokens: nextState.teamBTokens,
+            target_score: nextState.targetScore,
+            target_reached: nextState.targetReached,
+            finished_at: nextState.finishedAt ? new Date(nextState.finishedAt).toISOString() : null,
+            finished_by: nextState.finishedBy || null,
             winning_team: nextState.winningTeam,
           })
           .eq('id', gameRecord.id);

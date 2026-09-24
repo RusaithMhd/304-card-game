@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Award, Flame, Check, Edit2 } from 'lucide-react';
+import { User, Award, Flame, Check, Edit2, LogOut } from 'lucide-react';
 import { useAuthStore, AVATAR_OPTIONS } from '../../stores/useAuthStore';
 
 export const ProfileView: React.FC = () => {
-  const { user, updateProfile } = useAuthStore();
+  const { user, updateProfile, signOut } = useAuthStore();
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [selectedAvatar, setSelectedAvatar] = useState(user?.avatar_url || AVATAR_OPTIONS[0]);
   const [saved, setSaved] = useState(false);
@@ -110,14 +110,25 @@ export const ProfileView: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer"
+            >
+              SAVE CHANGES
+            </button>
+            {saved && <span className="text-xs text-emerald-400 font-bold">✓ Profile updated successfully!</span>}
+          </div>
+
           <button
-            type="submit"
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs shadow-lg hover:from-amber-400 hover:to-yellow-300 transition-all cursor-pointer"
+            type="button"
+            onClick={() => signOut()}
+            className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-xs hover:bg-rose-500/20 hover:border-rose-500/60 transition-all cursor-pointer flex items-center gap-2"
           >
-            SAVE CHANGES
+            <LogOut className="w-4 h-4" />
+            <span>SIGN OUT</span>
           </button>
-          {saved && <span className="text-xs text-emerald-400 font-bold">✓ Profile updated successfully!</span>}
         </div>
       </form>
     </div>

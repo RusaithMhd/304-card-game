@@ -61,6 +61,8 @@ export function createInitialState(roomId: string, players: PlayerState[]): Game
     teamBScore: 0,
     teamATokens: 11, // Match starting tokens
     teamBTokens: 11,
+    targetScore: 22,
+    targetReached: false,
     teamAMatchPoints: 0,
     teamBMatchPoints: 0,
     winningTeam: null,
@@ -70,6 +72,10 @@ export function createInitialState(roomId: string, players: PlayerState[]): Game
 }
 
 export function applyGameAction(state: GameEngineState, action: GameAction): GameEngineState {
+  if (state.status === 'GAME_COMPLETE' && action.type !== 'REMATCH') {
+    throw new Error('Game is finished. No further card play or actions are allowed.');
+  }
+
   const nextState = JSON.parse(JSON.stringify(state)) as GameEngineState;
   nextState.updatedAt = Date.now();
 
@@ -665,14 +671,41 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         nextState.teamATokens = Math.max(0, Math.min(22, nextState.teamATokens + result.tokensAwarded.teamA));
         nextState.teamBTokens = Math.max(0, Math.min(22, nextState.teamBTokens + result.tokensAwarded.teamB));
 
-        if (nextState.teamATokens >= 22 || nextState.teamBTokens >= 22 || nextState.teamATokens === 0 || nextState.teamBTokens === 0) {
-          nextState.status = 'GAME_COMPLETE';
-        } else {
-          nextState.status = 'ROUND_COMPLETE';
+        const targetLimit = nextState.targetScore ?? 22;
+        if (
+          nextState.teamATokens >= targetLimit ||
+          nextState.teamBTokens >= targetLimit ||
+          nextState.teamATokens === 0 ||
+          nextState.teamBTokens === 0
+        ) {
+          nextState.targetReached = true;
         }
 
+        // Do NOT automatically terminate game on target reached; allow players to choose Finish Game
+        nextState.status = 'ROUND_COMPLETE';
         nextState.lastActionMessage = result.summary;
       }
+      break;
+    }
+
+    case 'CONFIRM_FINISH_GAME': {
+      const targetLimit = nextState.targetScore ?? 22;
+      const isTargetMet =
+        nextState.targetReached ||
+        nextState.teamATokens >= targetLimit ||
+        nextState.teamBTokens >= targetLimit ||
+        nextState.teamATokens === 0 ||
+        nextState.teamBTokens === 0;
+
+      if (!isTargetMet) {
+        throw new Error('Target score has not been reached yet.');
+      }
+
+      nextState.status = 'GAME_COMPLETE';
+      nextState.finishedAt = Date.now();
+      nextState.finishedBy = nextState.players.find((p) => p.seat === action.seat)?.id;
+      nextState.winningTeam = nextState.teamATokens >= nextState.teamBTokens ? 0 : 1;
+      nextState.lastActionMessage = 'Match finished by player confirmation.';
       break;
     }
 

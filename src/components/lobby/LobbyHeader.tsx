@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Home, Users, History, User, Plus, KeyRound } from 'lucide-react';
+import { Home, Users, History, User, Plus, KeyRound, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 export type NavTab = 'home' | 'friends' | 'history' | 'profile';
@@ -19,7 +19,7 @@ export const LobbyHeader: React.FC<LobbyHeaderProps> = ({
   onCreateRoom,
   onJoinRoom,
 }) => {
-  const { user } = useAuthStore();
+  const { user, signOut, isAuthenticated } = useAuthStore();
 
   const navItems = [
     { id: 'home', label: 'Lobby', icon: Home },
@@ -70,6 +70,13 @@ export const LobbyHeader: React.FC<LobbyHeaderProps> = ({
 
         {/* User Profile & Primary Action Buttons */}
         <div className="flex items-center gap-2">
+          {isAuthenticated && user && (
+            <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-xl">
+              <img src={user.avatar_url} alt="Avatar" className="w-5 h-5 rounded-full bg-slate-800 object-cover" />
+              <span className="text-xs font-bold text-slate-200">{user.display_name}</span>
+            </div>
+          )}
+
           <button
             onClick={onJoinRoom}
             className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700/80 hover:bg-slate-800 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
@@ -85,6 +92,17 @@ export const LobbyHeader: React.FC<LobbyHeaderProps> = ({
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>CREATE ROOM</span>
           </button>
+
+          {isAuthenticated && (
+            <button
+              onClick={() => signOut()}
+              title="Sign Out"
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-rose-500/50 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden xl:inline">SIGN OUT</span>
+            </button>
+          )}
         </div>
       </header>
 

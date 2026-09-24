@@ -59,7 +59,20 @@ export const MatchResultsModal: React.FC<MatchResultsModalProps> = ({
         <h2 className="text-2xl font-black text-amber-400 uppercase tracking-wide mb-1">
           {gameState.status === 'GAME_COMPLETE' ? 'MATCH COMPLETED' : 'ROUND COMPLETED'}
         </h2>
-        <p className="text-xs text-slate-400 mb-4">{result.summary}</p>
+        <p className="text-xs text-slate-400 mb-3">{result.summary}</p>
+
+        {/* Target Score & Completed Timestamp */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 font-semibold text-[11px]">
+            <Coins className="w-3.5 h-3.5 text-amber-400" />
+            <span>Target: <strong className="text-amber-400">{gameState.targetScore ?? 22} Tokens</strong></span>
+          </div>
+          {gameState.finishedAt && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-slate-400 text-[11px]">
+              <span>Completed: {new Date(gameState.finishedAt).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
 
         {/* Token Transfer Summary Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 font-extrabold text-xs mb-4 shadow-md">

@@ -39,6 +39,7 @@ interface AuthStoreState {
   isAuthenticated: boolean;
   isLoading: boolean;
   errorMessage: string | null;
+  listenerInitialized: boolean;
 
   initializeAuth: () => Promise<void>;
   signUp: (email: string, pass: string, username: string, displayName: string) => Promise<boolean>;
@@ -48,59 +49,140 @@ interface AuthStoreState {
   clearError: () => void;
 }
 
+function buildUserFromSupabaseSession(sessionUser: any, profile: any): UserProfile {
+  const metadata = sessionUser.user_metadata || {};
+  const emailPrefix = sessionUser.email ? sessionUser.email.split('@')[0] : 'player';
+  const username = profile?.username || metadata.username || emailPrefix;
+  const displayName = profile?.display_name || metadata.display_name || (username.charAt(0).toUpperCase() + username.slice(1));
+  const avatarUrl = profile?.avatar_url || metadata.avatar_url || AVATAR_OPTIONS[0];
+
+  return {
+    id: sessionUser.id,
+    username,
+    displayName,
+    display_name: displayName,
+    avatarUrl,
+    avatar_url: avatarUrl,
+    bio: profile?.bio || metadata.bio,
+    country: profile?.country || metadata.country,
+    role: profile?.role || metadata.role || 'USER',
+    isOnline: true,
+    gamesPlayed: profile?.games_played || 0,
+    games_played: profile?.games_played || 0,
+    gamesWon: profile?.games_won || 0,
+    games_won: profile?.games_won || 0,
+    gamesLost: profile?.games_lost || 0,
+    games_lost: profile?.games_lost || 0,
+    tokensWon: profile?.tokens_won || 0,
+    tokensLost: profile?.tokens_lost || 0,
+    winStreak: profile?.win_streak || 0,
+    bestWinStreak: profile?.best_win_streak || 0,
+  };
+}
+
+function withTimeout<T>(promise: Promise<T> | PromiseLike<T>, ms: number = 1500): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Auth request timeout')), ms)
+    ),
+  ]);
+}
+
 export const useAuthStore = create<AuthStoreState>((set, get) => ({
   user: null,
   sessionToken: null,
   isAuthenticated: false,
   isLoading: true,
   errorMessage: null,
+  listenerInitialized: false,
 
   initializeAuth: async () => {
     set({ isLoading: true });
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        const token = session.access_token;
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profile) {
+    // Global Auth State Change Listener (Subscribed once)
+    if (!get().listenerInitialized) {
+      set({ listenerInitialized: true });
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('304_local_session');
+            sessionStorage.removeItem('304_active_view');
+          }
+          set({ user: null, sessionToken: null, isAuthenticated: false, isLoading: false });
+        } else if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+          let profile = null;
+          try {
+            const { data } = await withTimeout(
+              supabase.from('profiles').select('*').eq('id', session.user.id).single(),
+              1000
+            );
+            profile = data;
+          } catch (e) {
+            // ignore profile query errors
+          }
+          const userObj = buildUserFromSupabaseSession(session.user, profile);
           set({
-            sessionToken: token,
+            user: userObj,
+            sessionToken: session.access_token,
             isAuthenticated: true,
-            user: {
-              id: profile.id,
-              username: profile.username,
-              displayName: profile.display_name,
-              display_name: profile.display_name,
-              avatarUrl: profile.avatar_url,
-              avatar_url: profile.avatar_url,
-              bio: profile.bio,
-              country: profile.country,
-              role: profile.role,
-              isOnline: true,
-              gamesPlayed: profile.games_played || 0,
-              games_played: profile.games_played || 0,
-              gamesWon: profile.games_won || 0,
-              games_won: profile.games_won || 0,
-              gamesLost: profile.games_lost || 0,
-              games_lost: profile.games_lost || 0,
-              tokensWon: profile.tokens_won || 0,
-              tokensLost: profile.tokens_lost || 0,
-              winStreak: profile.win_streak || 0,
-              bestWinStreak: profile.best_win_streak || 0,
-            },
             isLoading: false,
           });
-          return;
         }
+      });
+    }
+
+    try {
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 1500);
+
+      if (session?.user) {
+        let profile = null;
+        try {
+          const { data } = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single(),
+            1000
+          );
+          profile = data;
+        } catch (e) {
+          // ignore profile fetch failure
+        }
+
+        const userObj = buildUserFromSupabaseSession(session.user, profile);
+        set({
+          user: userObj,
+          sessionToken: session.access_token,
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        return;
       }
     } catch (e: any) {
-      console.warn('Supabase auth session not found, running in guest mode:', e.message);
+      console.warn('Supabase auth session check timeout or error:', e.message);
+    }
+
+    // Check persistent fallback local session if Supabase session is not present
+    if (typeof window !== 'undefined') {
+      const localSaved = localStorage.getItem('304_local_session');
+      if (localSaved) {
+        try {
+          const parsed = JSON.parse(localSaved);
+          if (parsed?.user) {
+            set({
+              user: parsed.user,
+              sessionToken: parsed.token || 'local_session_token',
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return;
+          }
+        } catch (err) {
+          localStorage.removeItem('304_local_session');
+        }
+      }
     }
 
     set({ user: null, sessionToken: null, isAuthenticated: false, isLoading: false });
@@ -121,8 +203,36 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         return false;
       }
 
-      await get().signIn(email, password);
-      return true;
+      if (data.isFallback && data.user) {
+        const mockUser: UserProfile = {
+          id: data.user.id,
+          username: data.user.username,
+          displayName: data.user.displayName,
+          display_name: data.user.displayName,
+          avatarUrl: AVATAR_OPTIONS[0],
+          avatar_url: AVATAR_OPTIONS[0],
+          role: 'USER',
+          isOnline: true,
+          gamesPlayed: 0,
+          games_played: 0,
+          gamesWon: 0,
+          games_won: 0,
+          gamesLost: 0,
+          games_lost: 0,
+          tokensWon: 0,
+          tokensLost: 0,
+          winStreak: 0,
+          bestWinStreak: 0,
+        };
+        const localToken = `local_token_${Date.now()}`;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('304_local_session', JSON.stringify({ user: mockUser, token: localToken }));
+        }
+        set({ user: mockUser, sessionToken: localToken, isAuthenticated: true, isLoading: false });
+        return true;
+      }
+
+      return await get().signIn(email, password);
     } catch (e: any) {
       set({ errorMessage: e.message || 'Network error during signup', isLoading: false });
       return false;
@@ -137,8 +247,18 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         await get().initializeAuth();
         return true;
       }
+
+      if (error) {
+        console.warn('Supabase signInWithPassword error:', error.status, error.message);
+        if (error.message.includes('Invalid login credentials') || error.message.includes('User not found')) {
+          set({ errorMessage: 'Invalid email or password. Please check your credentials or create an account.', isLoading: false });
+          return false;
+        }
+        set({ errorMessage: error.message, isLoading: false });
+        return false;
+      }
     } catch (e: any) {
-      console.warn('Supabase Auth offline/placeholder, falling back to local session:', e.message);
+      console.warn('Supabase Auth network error, falling back to local session:', e.message);
     }
 
     // Fallback local session login for development / offline mode
@@ -165,9 +285,14 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
       bestWinStreak: 0,
     };
 
+    const localToken = `local_token_${Date.now()}`;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('304_local_session', JSON.stringify({ user: mockUser, token: localToken }));
+    }
+
     set({
       user: mockUser,
-      sessionToken: `local_token_${Date.now()}`,
+      sessionToken: localToken,
       isAuthenticated: true,
       isLoading: false,
     });
@@ -176,7 +301,17 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
 
   signOut: async () => {
     set({ isLoading: true });
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('Supabase signOut warning:', e);
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('304_local_session');
+      sessionStorage.removeItem('304_active_view');
+      sessionStorage.removeItem('304_active_room');
+      sessionStorage.removeItem('304_active_game');
+    }
     set({ user: null, sessionToken: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -203,7 +338,11 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
       }
       return false;
     } catch {
-      return false;
+      // Local optimistic update fallback
+      set((state) => ({
+        user: state.user ? { ...state.user, ...updates } : null,
+      }));
+      return true;
     }
   },
 

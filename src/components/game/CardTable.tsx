@@ -15,11 +15,12 @@ import { FloatingReactions } from '../chat/FloatingReactions';
 import { ChatSheet } from '../chat/ChatSheet';
 import { VoiceControlsBar } from '../voice/VoiceControlsBar';
 import { VoiceSettingsModal } from '../voice/VoiceSettingsModal';
+import { FinishGameConfirmModal } from './FinishGameConfirmModal';
 import { HonestGameModal } from './HonestGameModal';
 import { canDeclarePCC } from '../../lib/game-engine/pccRules';
 import { canDeclareHonestGame, canViewTrumpCard } from '../../lib/game-engine/honestGameRules';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../../lib/game-engine/cardValues';
-import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic, ShieldAlert, Sparkles, Coins } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic, ShieldAlert, Sparkles, Coins, Flag, Check } from 'lucide-react';
 import { PlayerState, PlayedCard, Card } from '../../lib/game-engine/types';
 
 interface CardTableProps {
@@ -43,6 +44,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVoiceSettingsOpen, setIsVoiceSettingsOpen] = useState(false);
   const [isHonestConfirmOpen, setIsHonestConfirmOpen] = useState(false);
+  const [isFinishConfirmOpen, setIsFinishConfirmOpen] = useState(false);
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [proposedTrumpMode, setProposedTrumpMode] = useState<'OPEN' | 'CLOSED'>('CLOSED');
@@ -83,6 +85,15 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
   const isPartnerHighBidderIn8Card = gameState.status === 'EIGHT_CARD_BIDDING' && gameState.bidding.bidderSeat !== null && (gameState.bidding.bidderSeat % 2 === localPlayer.team);
 
+  const targetLimit = gameState.targetScore ?? 22;
+  const isTargetReached = Boolean(
+    gameState.targetReached ||
+    gameState.teamATokens >= targetLimit ||
+    gameState.teamBTokens >= targetLimit ||
+    gameState.teamATokens === 0 ||
+    gameState.teamBTokens === 0
+  );
+
   return (
     <div className="relative w-full h-[100dvh] max-w-full bg-slate-950 flex flex-col items-center justify-between overflow-hidden select-none">
       {/* Background Ambient Glow */}
@@ -119,14 +130,32 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           </div>
         </div>
 
-        {/* Center: Match Details Drawer Trigger */}
-        <button
-          onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-          className="px-2.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-amber-400 font-extrabold text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-850"
-        >
-          <span>304 {gameState.roomId}</span>
-          <span className="text-[9px] text-slate-400">▼</span>
-        </button>
+        {/* Center: Match Details & Target Reached Button */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+            className="px-2.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-amber-400 font-extrabold text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-850"
+          >
+            <span>304 {gameState.roomId}</span>
+            <span className="text-[9px] text-slate-400">▼</span>
+          </button>
+
+          {isTargetReached && gameState.status !== 'GAME_COMPLETE' && (
+            <div className="flex items-center gap-1.5">
+              <div className="hidden md:flex px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-extrabold text-[10px] items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
+                <span>Target Reached ✓</span>
+              </div>
+              <button
+                onClick={() => setIsFinishConfirmOpen(true)}
+                className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-[10px] sm:text-xs shadow-lg flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+              >
+                <Flag className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
+                <span>Finish Game</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Right: Quick Action Controls */}
         <div className="flex items-center gap-1">
@@ -520,6 +549,15 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           setIsHonestConfirmOpen(false);
         }}
         onCancel={() => setIsHonestConfirmOpen(false)}
+      />
+
+      <FinishGameConfirmModal
+        isOpen={isFinishConfirmOpen}
+        onClose={() => setIsFinishConfirmOpen(false)}
+        onConfirmFinish={() => {
+          dispatchAction({ type: 'CONFIRM_FINISH_GAME', seat: localSeat });
+          setIsFinishConfirmOpen(false);
+        }}
       />
 
       {/* LEAVE MATCH CONFIRMATION MODAL */}

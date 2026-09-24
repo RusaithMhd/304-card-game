@@ -29,8 +29,51 @@ export default function HomePage() {
     initializeAuth();
   }, [initializeAuth]);
 
-  // Show Auth Portal if user is not logged in and not in guest mode
-  const showAuthPortal = !isLoading && !isAuthenticated && !isGuestMode;
+  // Restore saved view (game or room) after auth finishes loading
+  useEffect(() => {
+    if (!isLoading && (isAuthenticated || isGuestMode)) {
+      const savedView = sessionStorage.getItem('304_active_view') as 'lobby' | 'waiting' | 'game' | null;
+      if (savedView && (savedView === 'game' || savedView === 'waiting')) {
+        setCurrentView(savedView);
+      }
+    }
+  }, [isLoading, isAuthenticated, isGuestMode]);
+
+  const handleSetView = (view: 'lobby' | 'waiting' | 'game') => {
+    setCurrentView(view);
+    if (typeof window !== 'undefined') {
+      if (view === 'lobby') {
+        sessionStorage.removeItem('304_active_view');
+      } else {
+        sessionStorage.setItem('304_active_view', view);
+      }
+    }
+  };
+
+  // 1. AUTH LOADING STATE — Splash / Loader while checking persistent auth session
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center font-black text-slate-950 text-2xl shadow-xl shadow-amber-500/20 animate-pulse">
+            304
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-100 tracking-wider">304 FRIENDS</h2>
+            <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mt-1">
+              Restoring Session...
+            </p>
+          </div>
+          <div className="w-36 h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-full animate-pulse w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Determine if Auth Portal should be shown
+  const showAuthPortal = !isAuthenticated && !isGuestMode;
 
   const handleJoinRoom = (code: string) => {
     const playerProfile = user || {
@@ -45,18 +88,18 @@ export default function HomePage() {
       avatar: playerProfile.avatar_url,
     });
     if (room) {
-      setCurrentView('waiting');
+      handleSetView('waiting');
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {currentView === 'game' ? (
-        <CardTable onBackToLobby={() => setCurrentView('lobby')} />
+        <CardTable onBackToLobby={() => handleSetView('lobby')} />
       ) : currentView === 'waiting' ? (
         <WaitingRoom
-          onStartGame={() => setCurrentView('game')}
-          onLeaveRoom={() => setCurrentView('lobby')}
+          onStartGame={() => handleSetView('game')}
+          onLeaveRoom={() => handleSetView('lobby')}
         />
       ) : (
         <>
@@ -101,13 +144,13 @@ export default function HomePage() {
           <CreateRoomModal
             isOpen={isCreateModalOpen}
             onClose={() => setIsCreateModalOpen(false)}
-            onRoomCreated={() => setCurrentView('waiting')}
+            onRoomCreated={() => handleSetView('waiting')}
           />
 
           <JoinRoomModal
             isOpen={isJoinModalOpen}
             onClose={() => setIsJoinModalOpen(false)}
-            onJoined={() => setCurrentView('waiting')}
+            onJoined={() => handleSetView('waiting')}
           />
 
           <AuthPortalModal
