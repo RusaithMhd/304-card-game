@@ -14,6 +14,46 @@ import {
 import { useAuthStore } from './useAuthStore';
 import { getLegalCards } from '../lib/game-engine/trickRules';
 
+function getInitialSavedGameState(): GameEngineState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem('304_saved_game_state');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.roomId && parsed.players) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function getInitialSavedLocalSeat(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = sessionStorage.getItem('304_saved_local_seat');
+    if (raw !== null) return parseInt(raw, 10) || 0;
+  } catch (e) {}
+  return 0;
+}
+
+function saveGameStateToStorage(state: GameEngineState | null, seat?: number) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (state) {
+      sessionStorage.setItem('304_saved_game_state', JSON.stringify(state));
+      sessionStorage.setItem('304_active_room_code', state.roomId);
+      if (seat !== undefined) {
+        sessionStorage.setItem('304_saved_local_seat', seat.toString());
+      }
+    } else {
+      sessionStorage.removeItem('304_saved_game_state');
+      sessionStorage.removeItem('304_active_room_code');
+      sessionStorage.removeItem('304_saved_local_seat');
+    }
+  } catch (e) {}
+}
+
 interface GameStore {
   gameState: GameEngineState | null;
   localSeat: number; // 0, 1, 2, 3
@@ -28,25 +68,19 @@ interface GameStore {
   toggleBotMode: (enabled?: boolean) => void;
   triggerBotTurnIfNeeded: () => void;
   getRelativeSeatPosition: (actualSeat: number) => 'south' | 'east' | 'north' | 'west';
-  syncServerGameState: (serverGameState: GameEngineState) => void;
+  syncServerGameState: (serverGameState: GameEngineState, userSeat?: number) => void;
 }
 
-const DEFAULT_PLAYERS: PlayerState[] = [
-  createInitialPlayer('usr_default_host', 'Rusaith (You)', 'https://api.dicebear.com/7.x/bottts/svg?seed=rusaith', 0),
-  createInitialPlayer('bot_kavin', 'Kavin', 'https://api.dicebear.com/7.x/bottts/svg?seed=kavin', 1),
-  createInitialPlayer('bot_ahmed', 'Ahmed (Partner)', 'https://api.dicebear.com/7.x/bottts/svg?seed=ahmed', 2),
-  createInitialPlayer('bot_sajith', 'Sajith', 'https://api.dicebear.com/7.x/bottts/svg?seed=sajith', 3),
-];
-
 export const useGameStore = create<GameStore>((set, get) => ({
-  gameState: createInitialState('A7K29P', DEFAULT_PLAYERS),
-  localSeat: 0,
+  gameState: getInitialSavedGameState(),
+  localSeat: getInitialSavedLocalSeat(),
   selectedCardId: null,
   isBotModeEnabled: true,
   botSpeedMs: 1200,
 
   initRoomGame: (roomId, players, userSeat) => {
     const initialState = createInitialState(roomId, players);
+    saveGameStateToStorage(initialState, userSeat);
     set({
       gameState: initialState,
       localSeat: userSeat,
@@ -85,6 +119,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     try {
       const nextState = applyGameAction(currentState, action);
+      saveGameStateToStorage(nextState, get().localSeat);
       set({ gameState: nextState, selectedCardId: null });
 
       // 1. Broadcast to local browser windows/tabs
@@ -126,11 +161,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  syncServerGameState: (serverGameState) => {
+  syncServerGameState: (serverGameState, userSeat) => {
     if (!serverGameState) return;
     const current = get().gameState;
-    if (!current || (serverGameState.updatedAt && serverGameState.updatedAt > (current.updatedAt || 0))) {
-      set({ gameState: serverGameState });
+    const targetSeat = userSeat !== undefined ? userSeat : get().localSeat;
+    if (!current || (serverGameState.updatedAt && serverGameState.updatedAt >= (current.updatedAt || 0))) {
+      saveGameStateToStorage(serverGameState, targetSeat);
+      set({ gameState: serverGameState, localSeat: targetSeat });
       setTimeout(() => {
         get().triggerBotTurnIfNeeded();
       }, 300);
@@ -182,7 +219,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
  else if (state.status === 'PLAYING') {
         // Handle pending void choice for Bot
         if (state.pendingVoidChoiceSeat === currentTurn) {
-          const option = Math.random() > 0.5 ? 'USE_TRUMP' : 'FLIP_CARD';
+          const isTrumpMaker =
+            (state.honestGamePlacedBySeat !== undefined && state.honestGamePlacedBySeat === currentTurn) ||
+            state.bidding.bidderSeat === currentTurn;
+          const actualTrumpAvailable = !state.currentTrick?.actualTrumpUsed && Boolean(state.trumpCard);
+
+          let option: 'USE_TRUMP' | 'FLIP_CARD' | 'REVEAL_TRUMP';
+          if (isTrumpMaker && actualTrumpAvailable) {
+            option = Math.random() > 0.4 ? 'USE_TRUMP' : 'FLIP_CARD';
+          } else {
+            option = Math.random() > 0.5 ? 'REVEAL_TRUMP' : 'FLIP_CARD';
+          }
+
           dispatchAction({
             type: 'CHOOSE_VOID_OPTION',
             seat: currentTurn,

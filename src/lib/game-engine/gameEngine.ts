@@ -432,16 +432,15 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       if (!canViewTrumpCard(nextState, action.seat)) {
         throw new Error('Unauthorized to view Trump card');
       }
-
-      revealTrumpState(nextState);
-      nextState.lastActionMessage = `${nextState.players[action.seat].name} revealed TRUMP! Trump is ${SUIT_SYMBOLS[nextState.trumpSuit!]} (${nextState.trumpCard?.rank || ''}).`;
+      logGameEvent(nextState.id, nextState.players[action.seat].id, 'SEE_TRUMP_PRIVATE', { seat: action.seat });
       break;
     }
 
     case 'REVEAL_TRUMP': {
       if (!nextState.trumpRevealed && nextState.trumpSuit) {
         revealTrumpState(nextState);
-        nextState.lastActionMessage = `Trump revealed! Trump suit is ${SUIT_SYMBOLS[nextState.trumpSuit]}.`;
+        const player = nextState.players[action.seat];
+        nextState.lastActionMessage = `${player ? player.name : 'Player'} revealed TRUMP! Trump suit is ${SUIT_SYMBOLS[nextState.trumpSuit]}.`;
       }
       break;
     }
@@ -455,8 +454,14 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
       }
 
       const player = nextState.players[action.seat];
+      const isTrumpMakerSeat =
+        (nextState.honestGamePlacedBySeat !== undefined && nextState.honestGamePlacedBySeat === action.seat) ||
+        nextState.bidding.bidderSeat === action.seat;
 
       if (action.option === 'USE_TRUMP') {
+        if (!isTrumpMakerSeat) {
+          throw new Error('The actual Trump Card indicator can ONLY be used/played by the Trump Maker who placed it!');
+        }
         const trumpCard = nextState.trumpCard || {
           id: `trump_${Date.now()}`,
           suit: nextState.trumpSuit || 'H',

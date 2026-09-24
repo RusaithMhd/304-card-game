@@ -97,8 +97,12 @@ describe('304 Card Game — Honest Game Feature (250+ Commitment)', () => {
       applyGameAction(state, { type: 'SEE_TRUMP', seat: 2 });
     }).toThrow(/Unauthorized/);
 
-    // Player 1 executes SEE_TRUMP
+    // Player 1 executes SEE_TRUMP (private peek for Trump Maker; trumpRevealed stays false)
     state = applyGameAction(state, { type: 'SEE_TRUMP', seat: 1 });
+    expect(state.trumpRevealed).toBe(false);
+
+    // Player 1 executes REVEAL_TRUMP (global reveal to all players)
+    state = applyGameAction(state, { type: 'REVEAL_TRUMP', seat: 1 });
     expect(state.trumpRevealed).toBe(true);
 
     // NO FLIP BACK: trumpRevealed stays true
@@ -129,5 +133,39 @@ describe('304 Card Game — Honest Game Feature (250+ Commitment)', () => {
     state.teamBScore = 61;
     expect(evaluateHonestGameResult(state)).toBe('FAILED');
     expect(state.teamAScore).toBe(243);
+  });
+
+  it('strictly enforces that USE_TRUMP option can ONLY be played by the Trump Maker who placed the trump card', () => {
+    const players = [
+      createInitialPlayer('p0', 'Player 0', '', 0),
+      createInitialPlayer('p1', 'Player 1', '', 1),
+      createInitialPlayer('p2', 'Player 2', '', 2),
+      createInitialPlayer('p3', 'Player 3', '', 3),
+    ];
+
+    let state = createInitialState('test_honest_5', players);
+    state.status = 'PLAYING';
+    state.bidding.bidderSeat = 1; // Seat 1 is Trump Maker
+    state.currentTurnSeat = 2; // Seat 2 is NOT Trump Maker
+    state.pendingVoidChoiceSeat = 2;
+    state.currentTrick = {
+      trickNumber: 1,
+      leadSeat: 0,
+      cardsPlayed: [{ seat: 0, card: { id: 'c0', suit: 'H', rank: 'J' }, playedAt: Date.now() }],
+      winnerSeat: undefined,
+      points: 30,
+    };
+
+    // Non-trump-maker (Seat 2) attempting USE_TRUMP must throw an error
+    expect(() => {
+      applyGameAction(state, { type: 'CHOOSE_VOID_OPTION', seat: 2, option: 'USE_TRUMP' });
+    }).toThrow(/Trump Card indicator can ONLY be used\/played by the Trump Maker/);
+
+    // Trump Maker (Seat 1) can legally play USE_TRUMP when pending void choice
+    state.currentTurnSeat = 1;
+    state.pendingVoidChoiceSeat = 1;
+    expect(() => {
+      applyGameAction(state, { type: 'CHOOSE_VOID_OPTION', seat: 1, option: 'USE_TRUMP' });
+    }).not.toThrow();
   });
 });

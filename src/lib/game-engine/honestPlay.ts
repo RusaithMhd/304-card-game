@@ -21,6 +21,7 @@ export interface HonestGameEvent {
     | 'CARD_PLAYED'
     | 'TRICK_COMPLETED'
     | 'ROUND_COMPLETED'
+    | 'SEE_TRUMP_PRIVATE'
     | 'PLAYER_DISCONNECTED'
     | 'PLAYER_RECONNECTED';
   payload: Record<string, any>;

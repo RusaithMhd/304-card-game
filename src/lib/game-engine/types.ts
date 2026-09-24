@@ -142,7 +142,7 @@ export type GameAction =
 
   | { type: 'SEE_TRUMP'; seat: number }
   | { type: 'REVEAL_TRUMP'; seat: number }
-  | { type: 'CHOOSE_VOID_OPTION'; seat: number; option: 'USE_TRUMP' | 'FLIP_CARD' }
+  | { type: 'CHOOSE_VOID_OPTION'; seat: number; option: 'USE_TRUMP' | 'FLIP_CARD' | 'REVEAL_TRUMP' }
   | { type: 'PLAY_CARD'; seat: number; cardId: string }
   | { type: 'DECLARE_CAPS'; seat: number }
   | { type: 'DECLARE_SPOILT_TRUMPS'; seat: number }

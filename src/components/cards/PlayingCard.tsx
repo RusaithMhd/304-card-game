@@ -29,11 +29,11 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   onClick,
   className,
 }) => {
-  // Dimensions based on size optimized for mobile-first touch layout
+  // Dimensions based on size optimized for clear visibility & legibility on all viewports
   const sizeClasses = {
-    sm: 'w-10 h-14 min-w-[40px] sm:w-12 sm:h-16 text-[10px] sm:text-xs rounded-md',
-    md: 'w-14 h-20 min-w-[56px] sm:w-20 sm:h-28 text-xs sm:text-sm rounded-lg',
-    lg: 'w-18 h-26 min-w-[72px] sm:w-24 sm:h-36 text-sm sm:text-base rounded-xl',
+    sm: 'w-12 h-18 min-w-[48px] sm:w-16 sm:h-22 text-xs sm:text-sm rounded-lg',
+    md: 'w-16 h-24 min-w-[64px] sm:w-20 sm:h-28 text-xs sm:text-sm rounded-xl',
+    lg: 'w-20 h-28 min-w-[80px] sm:w-24 sm:h-36 text-sm sm:text-base rounded-2xl',
   }[size];
 
   if (faceDown || !card) {
@@ -74,7 +74,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       onClick={!isDisabled ? onClick : undefined}
       className={clsx(
         sizeClasses,
-        'relative bg-slate-50 text-slate-900 border border-slate-300 card-shadow transition-shadow flex flex-col justify-between p-1.5 cursor-pointer select-none overflow-hidden',
+        'relative bg-slate-50 text-slate-900 border border-slate-300 card-shadow transition-shadow flex flex-col justify-between p-1 sm:p-1.5 cursor-pointer select-none overflow-hidden',
         isSelected && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900 card-shadow-hover',
         isWinningCard && 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900 shadow-emerald-500/50 shadow-lg',
         isDisabled && 'opacity-50 cursor-not-allowed grayscale',
@@ -82,11 +82,11 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       )}
     >
       {/* Top Left Rank & Suit */}
-      <div className="flex flex-col items-center leading-none self-start">
-        <span className={clsx('font-black tracking-tight', isRed ? 'text-rose-600' : 'text-slate-900')}>
+      <div className="flex flex-col items-center leading-none self-start z-10">
+        <span className={clsx('font-black tracking-tight text-xs sm:text-sm', isRed ? 'text-rose-600' : 'text-slate-900')}>
           {card.rank}
         </span>
-        <span className={clsx('text-xs sm:text-sm', isRed ? 'text-rose-600' : 'text-slate-900')}>
+        <span className={clsx('text-xs sm:text-sm leading-none', isRed ? 'text-rose-600' : 'text-slate-900')}>
           {SUIT_SYMBOLS[card.suit]}
         </span>
       </div>
@@ -98,26 +98,21 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
         </span>
       </div>
 
-      {/* 304 Card Points Badge */}
+      {/* 304 Card Points Badge (Positioned safely at bottom-center without overlapping rank/suit) */}
       {points > 0 && (
         <div
-          className={clsx(
-            'absolute px-1 py-0.5 rounded bg-amber-300 text-amber-950 font-black shadow-sm border border-amber-400 flex items-center justify-center leading-none z-10',
-            size === 'sm'
-              ? 'top-1 right-1 text-[8px]'
-              : 'bottom-1.5 left-1/2 -translate-x-1/2 text-[9px] sm:text-[10px]'
-          )}
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded-full bg-amber-400 text-amber-950 font-black text-[8px] sm:text-[9px] shadow-md border border-amber-500/80 flex items-center justify-center leading-none z-20 whitespace-nowrap"
         >
-          <span>{points}pt{points > 1 && size !== 'sm' ? 's' : ''}</span>
+          <span>{points}pt{points > 1 ? 's' : ''}</span>
         </div>
       )}
 
-      {/* Bottom Right Rank & Suit (Inverted) */}
-      <div className="flex flex-col items-center leading-none self-end rotate-180">
-        <span className={clsx('font-black tracking-tight', isRed ? 'text-rose-600' : 'text-slate-900')}>
+      {/* Bottom Right Rank & Suit (Inverted, positioned safely inside card boundaries) */}
+      <div className="flex flex-col items-center leading-none self-end rotate-180 z-10 pb-0.5">
+        <span className={clsx('font-black tracking-tight text-xs sm:text-sm', isRed ? 'text-rose-600' : 'text-slate-900')}>
           {card.rank}
         </span>
-        <span className={clsx('text-xs sm:text-sm', isRed ? 'text-rose-600' : 'text-slate-900')}>
+        <span className={clsx('text-xs sm:text-sm leading-none', isRed ? 'text-rose-600' : 'text-slate-900')}>
           {SUIT_SYMBOLS[card.suit]}
         </span>
       </div>

@@ -19,10 +19,13 @@ import { VoiceSettingsModal } from '../voice/VoiceSettingsModal';
 import { FinishGameConfirmModal } from './FinishGameConfirmModal';
 import { HonestGameModal } from './HonestGameModal';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { PrivateTrumpModal } from './PrivateTrumpModal';
+import { useRoomStore } from '../../stores/useRoomStore';
+import { createInitialPlayer } from '../../lib/game-engine/gameEngine';
 import { canDeclarePCC } from '../../lib/game-engine/pccRules';
 import { canDeclareHonestGame, canViewTrumpCard } from '../../lib/game-engine/honestGameRules';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../../lib/game-engine/cardValues';
-import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic, ShieldAlert, Sparkles, Coins, Flag, Check } from 'lucide-react';
+import { MessageSquare, Volume2, VolumeX, Bot, ArrowLeft, ShieldCheck, Flame, Eye, Mic, ShieldAlert, Sparkles, Coins, Flag, Check, Megaphone } from 'lucide-react';
 import { PlayerState, PlayedCard, Card } from '../../lib/game-engine/types';
 
 interface CardTableProps {
@@ -31,6 +34,7 @@ interface CardTableProps {
 
 export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const { user } = useAuthStore();
+  const { currentRoom } = useRoomStore();
   const {
     gameState,
     localSeat,
@@ -41,48 +45,84 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
     dispatchAction,
     getRelativeSeatPosition,
     syncServerGameState,
+    initRoomGame,
   } = useGameStore();
 
-  // Multi-window / multi-device realtime game state sync
+  // Multi-window / multi-device realtime game state sync & refresh retrieval
   React.useEffect(() => {
-    if (!gameState?.roomId) return;
-    const roomId = gameState.roomId;
+    const activeRoomCode =
+      currentRoom?.roomCode ||
+      gameState?.roomId ||
+      (typeof window !== 'undefined' ? sessionStorage.getItem('304_active_room_code') : null);
 
-    // 1. Local BroadcastChannel listener for multi-window tab sync
+    if (!activeRoomCode) return;
+
+    let isMounted = true;
+
+    const fetchLatestState = async () => {
+      try {
+        const res = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get', roomCode: activeRoomCode }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && isMounted) {
+            const members = data.members || data.room?.members || [];
+            let computedSeat: number | undefined = undefined;
+            if (user && members.length > 0) {
+              const matchedMember = members.find(
+                (m: any) =>
+                  m.user_id === user.id ||
+                  (user.display_name &&
+                    m.profiles?.display_name &&
+                    m.profiles.display_name.trim().toLowerCase() === user.display_name.trim().toLowerCase())
+              );
+              if (matchedMember && matchedMember.seat !== undefined) {
+                computedSeat = matchedMember.seat;
+              }
+            }
+
+            if (data.gameState) {
+              syncServerGameState(data.gameState, computedSeat);
+            } else if (data.room && members.length > 0) {
+              const players: PlayerState[] = members.map((m: any, idx: number) => {
+                const profileName = m.profiles?.display_name || m.profiles?.username || `Player ${m.seat + 1}`;
+                const profileAvatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.seat}`;
+                const p = createInitialPlayer(m.user_id || `usr_${m.seat}`, profileName, profileAvatar, m.seat ?? idx);
+                p.isReady = m.is_ready ?? false;
+                return p;
+              });
+              initRoomGame(activeRoomCode, players, computedSeat ?? 0);
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchLatestState();
+
     let channel: BroadcastChannel | null = null;
     if (typeof window !== 'undefined') {
       try {
-        channel = new BroadcastChannel(`304_game_${roomId}`);
+        channel = new BroadcastChannel(`304_game_${activeRoomCode}`);
         channel.onmessage = (event) => {
-          if (event.data?.type === 'GAME_STATE_UPDATE' && event.data.gameState) {
+          if (event.data?.type === 'GAME_STATE_UPDATE' && event.data.gameState && isMounted) {
             syncServerGameState(event.data.gameState);
           }
         };
       } catch (e) {}
     }
 
-    // 2. Server API polling sync (1.2s interval)
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch('/api/rooms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'get', roomCode: roomId }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.gameState) {
-            syncServerGameState(data.gameState);
-          }
-        }
-      } catch (e) {}
-    }, 1200);
+    const interval = setInterval(fetchLatestState, 1200);
 
     return () => {
+      isMounted = false;
       clearInterval(interval);
       if (channel) channel.close();
     };
-  }, [gameState?.roomId, syncServerGameState]);
+  }, [currentRoom?.roomCode, gameState?.roomId, syncServerGameState, initRoomGame, user]);
 
   const { unreadCount, toggleChat, activeReactions } = useChatStore();
   const { isSpeakingMap } = useVoiceStore();
@@ -93,8 +133,28 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [proposedTrumpMode, setProposedTrumpMode] = useState<'OPEN' | 'CLOSED'>('CLOSED');
+  const [isPrivateTrumpModalOpen, setIsPrivateTrumpModalOpen] = useState(false);
 
-  if (!gameState) return null;
+  if (!gameState) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center font-black text-slate-950 text-2xl shadow-xl shadow-amber-500/20 animate-pulse">
+            304
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-slate-100 tracking-wider">RESTORING MATCH...</h2>
+            <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mt-1">
+              Synchronizing game state from server
+            </p>
+          </div>
+          <div className="w-36 h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-full animate-pulse w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const userSeat = React.useMemo(() => {
     if (!user || !gameState?.players) return localSeat;
@@ -359,18 +419,34 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                 </div>
               </div>
 
-              {/* SEE TRUMP BUTTON */}
+              {/* SEE TRUMP (Private Peek) & REVEAL TRUMP (Public Reveal) for Trump Maker ONLY */}
               {isAuthorizedToSeeTrump && !gameState.trumpRevealed && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    dispatchAction({ type: 'SEE_TRUMP', seat: localSeat });
-                  }}
-                  className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-[8px] uppercase tracking-wider shadow-md flex items-center gap-1 cursor-pointer active:scale-95 animate-pulse"
-                >
-                  <Eye className="w-2.5 h-2.5 stroke-[3]" />
-                  <span>SEE TRUMP</span>
-                </button>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatchAction({ type: 'SEE_TRUMP', seat: userSeat });
+                      setIsPrivateTrumpModalOpen(true);
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/60 hover:bg-amber-500/30 text-amber-300 font-extrabold text-[8px] uppercase tracking-wider flex items-center gap-1 cursor-pointer active:scale-95"
+                    title="Peek at your secret trump card privately (hidden from other players)"
+                  >
+                    <Eye className="w-2.5 h-2.5 stroke-[3]" />
+                    <span>SEE TRUMP</span>
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatchAction({ type: 'REVEAL_TRUMP', seat: userSeat });
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-slate-950 font-black text-[8px] uppercase tracking-wider shadow-md hover:brightness-110 flex items-center gap-1 cursor-pointer active:scale-95"
+                    title="Reveal trump suit to all players on the table"
+                  >
+                    <Megaphone className="w-2.5 h-2.5 fill-current" />
+                    <span>REVEAL TRUMP</span>
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -431,14 +507,14 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.south && getPlayedCardForSeat(relativeSeats.south.seat) && (
               <motion.div
                 initial={{ y: 60, opacity: 0 }}
-                animate={{ y: 24, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ y: 28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
                   card={getPlayedCardForSeat(relativeSeats.south.seat)?.card}
                   faceDown={getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown}
-                  size="sm"
+                  size="md"
                   isWinningCard={gameState.currentTrick?.winnerSeat === relativeSeats.south.seat}
                 />
               </motion.div>
@@ -447,14 +523,14 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.west && getPlayedCardForSeat(relativeSeats.west.seat) && (
               <motion.div
                 initial={{ x: -60, opacity: 0 }}
-                animate={{ x: -32, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ x: -36, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
                   card={getPlayedCardForSeat(relativeSeats.west.seat)?.card}
                   faceDown={getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown}
-                  size="sm"
+                  size="md"
                   isWinningCard={gameState.currentTrick?.winnerSeat === relativeSeats.west.seat}
                 />
               </motion.div>
@@ -463,14 +539,14 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.north && getPlayedCardForSeat(relativeSeats.north.seat) && (
               <motion.div
                 initial={{ y: -60, opacity: 0 }}
-                animate={{ y: -24, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ y: -28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
                 <PlayingCard
                   card={getPlayedCardForSeat(relativeSeats.north.seat)?.card}
                   faceDown={getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown}
-                  size="sm"
+                  size="md"
                   isWinningCard={gameState.currentTrick?.winnerSeat === relativeSeats.north.seat}
                 />
               </motion.div>
@@ -486,7 +562,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                 <PlayingCard
                   card={getPlayedCardForSeat(relativeSeats.east.seat)?.card}
                   faceDown={getPlayedCardForSeat(relativeSeats.east.seat)?.isFaceDown}
-                  size="sm"
+                  size="md"
                   isWinningCard={gameState.currentTrick?.winnerSeat === relativeSeats.east.seat}
                 />
               </motion.div>
@@ -515,12 +591,22 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
               </p>
 
               <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'USE_TRUMP' })}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <span>🔒 USE TRUMP</span>
-                </button>
+                {/* USE TRUMP option is strictly reserved for the Trump Maker who placed the trump card */}
+                {isAuthorizedToSeeTrump ? (
+                  <button
+                    onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'USE_TRUMP' })}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span>🔒 USE TRUMP (MY TRUMP CARD)</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'REVEAL_TRUMP' })}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-slate-950 font-black text-sm uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <span>📢 REVEAL TRUMP TO ALL</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'FLIP_CARD' })}
@@ -606,6 +692,16 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         onConfirmFinish={() => {
           dispatchAction({ type: 'CONFIRM_FINISH_GAME', seat: userSeat });
           setIsFinishConfirmOpen(false);
+        }}
+      />
+
+      <PrivateTrumpModal
+        isOpen={isPrivateTrumpModalOpen}
+        trumpCard={gameState.trumpCard}
+        trumpSuit={gameState.trumpSuit}
+        onClose={() => setIsPrivateTrumpModalOpen(false)}
+        onRevealToAll={() => {
+          dispatchAction({ type: 'REVEAL_TRUMP', seat: userSeat });
         }}
       />
 
