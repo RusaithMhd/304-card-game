@@ -27,6 +27,7 @@ interface ServerRoom {
   created_at: string;
   members: ServerPlayer[];
   game_state?: any;
+  chat_messages?: any[];
 }
 
 // Server-authoritative in-memory room registry across hot reloads & worker processes
@@ -315,7 +316,13 @@ export async function POST(req: Request) {
         );
       }
 
-      return NextResponse.json({ success: true, room, members: room.members, gameState: room.game_state });
+      return NextResponse.json({
+        success: true,
+        room,
+        members: room.members,
+        gameState: room.game_state,
+        chatMessages: room.chat_messages || [],
+      });
     }
 
     // 4. TOGGLE PLAYER READY
@@ -482,7 +489,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 9. LIST ACTIVE WAITING ROOMS
+    // 9. SEND CHAT MESSAGE
+    if (action === 'send_chat') {
+      if (!roomCode || !body.message) {
+        return NextResponse.json(
+          { success: false, error: { code: 'MISSING_PARAM', message: 'Room Code and message required.' } },
+          { status: 400 }
+        );
+      }
+
+      const cleanCode = roomCode.trim().toUpperCase();
+      const room = serverRoomsMap.get(cleanCode);
+      if (room) {
+        if (!room.chat_messages) room.chat_messages = [];
+        // Avoid duplicate messages
+        if (!room.chat_messages.some((m) => m.id === body.message.id)) {
+          room.chat_messages.push(body.message);
+          if (room.chat_messages.length > 50) {
+            room.chat_messages = room.chat_messages.slice(-50);
+          }
+          serverRoomsMap.set(cleanCode, room);
+        }
+        return NextResponse.json({ success: true, chatMessages: room.chat_messages });
+      }
+      return NextResponse.json({ success: true, chatMessages: [] });
+    }
+
+    // 10. LIST ACTIVE WAITING ROOMS
     if (action === 'list') {
       const activeRooms = Array.from(serverRoomsMap.values()).filter((r) => r.status === 'waiting');
       return NextResponse.json({ success: true, rooms: activeRooms });

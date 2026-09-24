@@ -86,6 +86,10 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
               }
             }
 
+            if (data.chatMessages) {
+              useChatStore.getState().syncRoomMessages(data.chatMessages);
+            }
+
             if (data.gameState) {
               syncServerGameState(data.gameState, computedSeat);
             } else if (data.room && members.length > 0) {
@@ -106,12 +110,26 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
     fetchLatestState();
 
     let channel: BroadcastChannel | null = null;
+    let chatChannel: BroadcastChannel | null = null;
     if (typeof window !== 'undefined') {
       try {
         channel = new BroadcastChannel(`304_game_${activeRoomCode}`);
         channel.onmessage = (event) => {
           if (event.data?.type === 'GAME_STATE_UPDATE' && event.data.gameState && isMounted) {
             syncServerGameState(event.data.gameState);
+          }
+        };
+
+        chatChannel = new BroadcastChannel(`304_chat_${activeRoomCode}`);
+        chatChannel.onmessage = (event) => {
+          if (isMounted) {
+            if (event.data?.type === 'CHAT_MESSAGE' && event.data.message) {
+              useChatStore.getState().syncRoomMessages([event.data.message]);
+            } else if (event.data?.type === 'FLOATING_REACTION' && event.data.reaction) {
+              useChatStore.setState((state) => ({
+                activeReactions: [...state.activeReactions, event.data.reaction],
+              }));
+            }
           }
         };
       } catch (e) {}
@@ -123,6 +141,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       isMounted = false;
       clearInterval(interval);
       if (channel) channel.close();
+      if (chatChannel) chatChannel.close();
     };
   }, [currentRoom?.roomCode, gameState?.roomId, syncServerGameState, initRoomGame, user]);
 

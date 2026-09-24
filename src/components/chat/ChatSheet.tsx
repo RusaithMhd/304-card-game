@@ -74,7 +74,9 @@ export const ChatSheet: React.FC<ChatSheetProps> = ({ localSeat }) => {
           {/* Messages Container */}
           <div className="flex-1 p-4 overflow-y-auto space-y-3 max-h-72">
             {messages.map((m) => {
-              const isMine = m.sender_id === user?.id;
+              const isMine =
+                (user?.id && m.sender_id === user.id) ||
+                (user?.display_name && m.sender_name.trim().toLowerCase() === user.display_name.trim().toLowerCase());
 
               return (
                 <div
