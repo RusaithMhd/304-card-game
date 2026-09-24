@@ -104,89 +104,83 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       <FloatingReactions reactions={activeReactions} getRelativeSeatPosition={getRelativeSeatPosition} />
 
       {/* 1. TOP HEADER NAVIGATION & SCOREBOARD (COMPACT 1-ROW MOBILE FIRST) */}
-      <header className="relative z-30 w-full px-2.5 sm:px-4 py-2 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-1.5">
+      <header className="relative z-30 w-full px-2 sm:px-4 py-1.5 sm:py-2 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between gap-1 sm:gap-2">
         {/* Left: Back Button & Compact Score */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
             onClick={() => setIsLeaveConfirmOpen(true)}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer active:scale-95"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer active:scale-95 shrink-0"
             title="Leave Match"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
 
-          <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2.5 py-1 rounded-full shadow-md">
-            <span className="text-[10px] font-black text-amber-400">A {gameState.teamAScore}</span>
+          <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 px-2 sm:px-2.5 py-1 rounded-full shadow-md shrink-0">
+            <span className="text-[10px] sm:text-xs font-black text-amber-400">A {gameState.teamAScore}</span>
             <span className="text-[10px] text-slate-500 font-bold">:</span>
-            <span className="text-[10px] font-black text-emerald-400">{gameState.teamBScore} B</span>
+            <span className="text-[10px] sm:text-xs font-black text-emerald-400">{gameState.teamBScore} B</span>
           </div>
 
           {/* Tokens indicator compact */}
           <div
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className="hidden xs:flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-300 cursor-pointer"
+            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-300 cursor-pointer"
           >
             <Coins className="w-3 h-3 text-amber-400" />
             <span>A:{gameState.teamATokens} | B:{gameState.teamBTokens}</span>
           </div>
         </div>
 
-        {/* Center: Match Details & Target Reached Button */}
-        <div className="flex items-center gap-2">
+        {/* Center: Room Code Pill & Finish Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className="px-2.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-amber-400 font-extrabold text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-850"
+            className="px-2 sm:px-2.5 py-1 rounded-full bg-slate-900 border border-amber-500/30 text-amber-400 font-extrabold text-[10px] tracking-wider uppercase flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-850 shrink-0"
           >
             <span>304 {gameState.roomId}</span>
             <span className="text-[9px] text-slate-400">▼</span>
           </button>
 
           {isTargetReached && gameState.status !== 'GAME_COMPLETE' && (
-            <div className="flex items-center gap-1.5">
-              <div className="hidden md:flex px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-extrabold text-[10px] items-center gap-1">
-                <Check className="w-3 h-3 text-emerald-400 stroke-[3]" />
-                <span>Target Reached ✓</span>
-              </div>
-              <button
-                onClick={() => setIsFinishConfirmOpen(true)}
-                className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-[10px] sm:text-xs shadow-lg flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
-              >
-                <Flag className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
-                <span>Finish Game</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setIsFinishConfirmOpen(true)}
+              className="px-2 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-[9px] sm:text-xs shadow-lg flex items-center gap-1 cursor-pointer active:scale-95 transition-all shrink-0"
+            >
+              <Flag className="w-3 h-3 text-slate-950 fill-slate-950" />
+              <span>FINISH</span>
+            </button>
           )}
         </div>
 
         {/* Right: Quick Action Controls */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <VoiceControlsBar onOpenSettings={() => setIsVoiceSettingsOpen(true)} />
 
           <button
             onClick={() => toggleBotMode()}
-            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+            className={`p-1.5 sm:p-2 rounded-xl border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
               isBotModeEnabled
                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                 : 'bg-slate-900 border-slate-800 text-slate-400'
             }`}
             title="Toggle Bot Players"
           >
-            <Bot className="w-4 h-4" />
+            <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden md:inline">BOTS {isBotModeEnabled ? 'ON' : 'OFF'}</span>
           </button>
 
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
           >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </button>
 
           <button
             onClick={() => toggleChat()}
-            className="relative p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="relative p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-black text-[9px] animate-bounce">
                 {unreadCount}
@@ -276,20 +270,20 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       </AnimatePresence>
 
       {/* 2. POLISHED 2D GAME FELT TABLE AREA (FITS PERFECTLY IN REMAINING VIEWPORT) */}
-      <main className="relative z-10 flex-1 w-full max-w-4xl px-2 my-1 flex items-center justify-center overflow-hidden">
+      <main className="relative z-10 flex-1 w-full max-w-4xl px-1.5 sm:px-3 my-0.5 sm:my-1 flex items-center justify-center overflow-hidden">
         <div
           onClick={() => {
             if (gameState.status === 'TRICK_COMPLETE') {
               dispatchAction({ type: 'NEXT_TRICK' });
             }
           }}
-          className={`relative w-full h-full max-h-[500px] rounded-[32px] sm:rounded-[60px] table-felt-pattern table-felt-border flex items-center justify-center overflow-hidden ${
+          className={`relative w-full h-full max-h-[460px] sm:max-h-[520px] rounded-[28px] sm:rounded-[50px] table-felt-pattern table-felt-border flex items-center justify-center overflow-hidden ${
             gameState.status === 'TRICK_COMPLETE' ? 'cursor-pointer' : ''
           }`}
         >
-          {/* Active Status Banner (Positioned below North seat) */}
-          <div className="absolute top-12 sm:top-14 inset-x-0 flex justify-center pointer-events-none z-20 px-2">
-            <div className="px-3 py-1 rounded-full bg-slate-950/85 border border-emerald-500/40 text-[10px] sm:text-xs font-bold text-emerald-300 shadow-lg flex items-center gap-1.5 truncate max-w-[90%]">
+          {/* Active Status Banner (Positioned safely below North player seat to avoid collision!) */}
+          <div className="absolute top-16 sm:top-20 inset-x-0 flex justify-center pointer-events-none z-20 px-2">
+            <div className="px-2.5 sm:px-3 py-1 rounded-full bg-slate-950/90 border border-emerald-500/50 text-[9px] sm:text-xs font-bold text-emerald-300 shadow-xl flex items-center gap-1.5 truncate max-w-[85%]">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
               <span className="truncate">
                 {gameState.lastActionMessage}
@@ -300,14 +294,14 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
           {/* 3. TRUMP INDICATOR BADGE (Top-Left Compact Pill, Zero Collision) */}
           {gameState.trumpMode === 'CLOSED' && (
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 z-30 flex flex-col items-start gap-1">
-              <div className="px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 flex items-center gap-1.5 shadow-xl">
-                <div className="w-5 h-7 rounded bg-gradient-to-br from-amber-700 to-amber-950 border border-amber-400/80 flex items-center justify-center text-[10px] text-amber-200">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 z-30 flex flex-col items-start gap-1 max-w-[110px] sm:max-w-[150px]">
+              <div className="px-2 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 flex items-center gap-1.5 shadow-xl">
+                <div className="w-4 h-6 rounded bg-gradient-to-br from-amber-700 to-amber-950 border border-amber-400/80 flex items-center justify-center text-[9px] text-amber-200 shrink-0">
                   🂠
                 </div>
-                <div className="flex flex-col text-[9px] leading-tight">
-                  <span className="font-extrabold text-amber-400">CLOSED TRUMP</span>
-                  <span className="text-slate-300 font-bold">BID: {gameState.bidding.currentHighBid}</span>
+                <div className="flex flex-col text-[8px] sm:text-[9px] leading-tight truncate">
+                  <span className="font-extrabold text-amber-400 truncate">CLOSED TRUMP</span>
+                  <span className="text-slate-300 font-bold truncate">BID: {gameState.bidding.currentHighBid}</span>
                 </div>
               </div>
 
@@ -318,9 +312,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                     e.stopPropagation();
                     dispatchAction({ type: 'SEE_TRUMP', seat: localSeat });
                   }}
-                  className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-[9px] uppercase tracking-wider shadow-md flex items-center gap-1 cursor-pointer active:scale-95 animate-pulse"
+                  className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-[8px] uppercase tracking-wider shadow-md flex items-center gap-1 cursor-pointer active:scale-95 animate-pulse"
                 >
-                  <Eye className="w-3 h-3 stroke-[3]" />
+                  <Eye className="w-2.5 h-2.5 stroke-[3]" />
                   <span>SEE TRUMP</span>
                 </button>
               )}
@@ -329,12 +323,12 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
           {/* Open Trump Badge */}
           {gameState.trumpSuit && (gameState.trumpMode === 'OPEN' || gameState.trumpRevealed) && (
-            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 text-[10px] font-bold text-slate-200 flex items-center gap-1.5 shadow-xl z-30">
-              <span className="text-[9px] text-amber-400 font-extrabold uppercase">TRUMP:</span>
-              <span className={`text-base font-black ${SUIT_COLORS[gameState.trumpSuit] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-4 px-2 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 text-[9px] font-bold text-slate-200 flex items-center gap-1.5 shadow-xl z-30">
+              <span className="text-[8px] sm:text-[9px] text-amber-400 font-extrabold uppercase">TRUMP:</span>
+              <span className={`text-sm sm:text-base font-black ${SUIT_COLORS[gameState.trumpSuit] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
                 {SUIT_SYMBOLS[gameState.trumpSuit]}
               </span>
-              <span className="text-[9px] text-slate-400 border-l border-slate-800 pl-1.5">
+              <span className="text-[8px] sm:text-[9px] text-slate-400 border-l border-slate-800 pl-1">
                 BID: {gameState.bidding.currentHighBid}
               </span>
             </div>
@@ -379,11 +373,11 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           )}
 
           {/* --- CENTER TRICK CARDS PLAYED AREA --- */}
-          <div className="relative w-36 h-36 sm:w-56 sm:h-56 flex items-center justify-center">
+          <div className="relative w-44 h-44 sm:w-60 sm:h-60 flex items-center justify-center">
             {relativeSeats.south && getPlayedCardForSeat(relativeSeats.south.seat) && (
               <motion.div
                 initial={{ y: 60, opacity: 0 }}
-                animate={{ y: 20, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ y: 24, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.south.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
@@ -399,7 +393,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.west && getPlayedCardForSeat(relativeSeats.west.seat) && (
               <motion.div
                 initial={{ x: -60, opacity: 0 }}
-                animate={{ x: -28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ x: -32, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.west.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
@@ -415,7 +409,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.north && getPlayedCardForSeat(relativeSeats.north.seat) && (
               <motion.div
                 initial={{ y: -60, opacity: 0 }}
-                animate={{ y: -20, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ y: -24, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.north.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
@@ -431,7 +425,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             {relativeSeats.east && getPlayedCardForSeat(relativeSeats.east.seat) && (
               <motion.div
                 initial={{ x: 60, opacity: 0 }}
-                animate={{ x: 28, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.east.seat)?.isFaceDown ? 180 : 0 }}
+                animate={{ x: 32, opacity: 1, rotateY: getPlayedCardForSeat(relativeSeats.east.seat)?.isFaceDown ? 180 : 0 }}
                 transition={{ duration: 0.3 }}
                 className="absolute z-20"
               >
@@ -487,7 +481,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       </AnimatePresence>
 
       {/* 5. BOTTOM CARDS HAND AREA */}
-      <footer className="relative z-30 w-full pb-safe pt-2 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent flex flex-col items-center">
+      <footer className="relative z-30 w-full pb-safe pt-1 sm:pt-2 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent flex flex-col items-center">
         <CardHand
           cards={localPlayer.cards}
           selectedCardId={selectedCardId}
@@ -647,14 +641,15 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
 
   return (
     <div className={`absolute z-20 flex flex-col items-center pointer-events-none ${posClasses}`}>
-      <div className="relative">
+      <div className="relative flex items-center justify-center">
+        {/* Main Avatar Container */}
         <div
-          className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full p-0.5 flex items-center justify-center transition-all ${
+          className={`w-10 h-10 sm:w-13 sm:h-13 rounded-full p-0.5 flex items-center justify-center transition-all ${
             isSpeaking
-              ? 'ring-4 ring-emerald-400 animate-pulse shadow-emerald-500/80 shadow-2xl scale-105'
+              ? 'ring-4 ring-emerald-400 animate-pulse shadow-emerald-500/80 shadow-xl scale-105'
               : isTurn
               ? 'ring-4 ring-amber-400 animate-turn-glow shadow-amber-500/50 shadow-xl'
-              : 'border-2 border-slate-700/80 bg-slate-900/80'
+              : 'border-2 border-slate-700/80 bg-slate-900/90'
           }`}
         >
           <img
@@ -664,20 +659,23 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
           />
         </div>
 
+        {/* Voice Speaking Icon Badge */}
         {isSpeaking && (
-          <span className="absolute -top-1 -left-1 p-0.5 rounded-full bg-emerald-500 text-slate-950 shadow-md animate-bounce">
+          <span className="absolute -top-1 -right-1 p-0.5 rounded-full bg-emerald-500 text-slate-950 shadow-md animate-bounce z-10">
             <Mic className="w-2.5 h-2.5 stroke-[3]" />
           </span>
         )}
 
+        {/* Dealer Coin Badge */}
         {isDealer && (
-          <span className="absolute -top-1 -right-1 px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 font-black text-[8px] shadow-sm">
+          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber-400 text-slate-950 font-black text-[8px] flex items-center justify-center shadow-md border border-amber-200 z-10">
             D
           </span>
         )}
 
+        {/* Team Pill Badge */}
         <span
-          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 px-1 py-0.2 rounded-full text-[7px] sm:text-[8px] font-black uppercase tracking-tighter ${
+          className={`absolute -top-1 -left-1 px-1.5 py-0.2 rounded-full text-[8px] font-black uppercase tracking-wider shadow-md z-10 ${
             player.team === 0 ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
           }`}
         >
@@ -685,11 +683,14 @@ const PlayerAvatarSeat: React.FC<PlayerAvatarSeatProps> = ({
         </span>
       </div>
 
-      <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-950/90 border border-slate-800/80 flex items-center gap-1 shadow-md">
-        <span className="text-[10px] sm:text-[11px] font-bold text-slate-200 truncate max-w-[64px] sm:max-w-[90px]">
+      {/* Player Name & Card Count Pill */}
+      <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-950/90 border border-slate-800/80 flex items-center gap-1 shadow-md max-w-[90px] sm:max-w-[110px]">
+        <span className="text-[10px] sm:text-[11px] font-bold text-slate-100 truncate">
           {player.name}
         </span>
-        <span className="text-[9px] sm:text-[10px] text-amber-400 font-bold">🂠{player.cardCount}</span>
+        <span className="text-[9px] sm:text-[10px] text-amber-400 font-extrabold shrink-0">
+          🂠{player.cardCount}
+        </span>
       </div>
     </div>
   );

@@ -20,7 +20,27 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
 
   const [copied, setCopied] = useState(false);
 
-  if (!currentRoom || !user) return null;
+  React.useEffect(() => {
+    if (!currentRoom) {
+      const timer = setTimeout(() => {
+        onLeaveRoom();
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [currentRoom, onLeaveRoom]);
+
+  if (!currentRoom || !user) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-10 h-10 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-amber-400 font-bold uppercase tracking-wider">
+            Loading Room Session...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const isHost = currentRoom.hostId === user.id;
   const localPlayer = currentRoom.players.find((p) => p.id === user.id);

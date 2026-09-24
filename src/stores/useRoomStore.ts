@@ -53,26 +53,56 @@ const DEFAULT_ROOM: RoomDetails = {
 };
 
 function getSharedRoomsFromStorage(): RoomDetails[] {
-  if (typeof window === 'undefined') return [];
+  if (typeof window === 'undefined') return [DEFAULT_ROOM];
   try {
     const raw = localStorage.getItem('304_shared_rooms');
-    return raw ? JSON.parse(raw) : [];
+    const rooms = raw ? JSON.parse(raw) : [];
+    return rooms.length > 0 ? rooms : [DEFAULT_ROOM];
   } catch (e) {
-    return [];
+    return [DEFAULT_ROOM];
   }
+}
+
+function getCurrentRoomFromStorage(): RoomDetails | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem('304_current_room');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+}
+
+function saveCurrentRoomToStorage(room: RoomDetails | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (room) {
+      sessionStorage.setItem('304_current_room', JSON.stringify(room));
+      sessionStorage.setItem('304_active_view', 'waiting');
+    } else {
+      sessionStorage.removeItem('304_current_room');
+      sessionStorage.removeItem('304_active_view');
+    }
+  } catch (e) {}
 }
 
 function broadcastRoomUpdate(room: RoomDetails) {
   if (typeof window === 'undefined') return;
 
-  // 1. Save to localStorage
+  // 1. Store in global window memory object
+  if (!(window as any).__304_SHARED_ROOMS__) {
+    (window as any).__304_SHARED_ROOMS__ = [];
+  }
+  const inMem: RoomDetails[] = (window as any).__304_SHARED_ROOMS__;
+  (window as any).__304_SHARED_ROOMS__ = [room, ...inMem.filter((r) => r.id !== room.id)];
+
+  // 2. Save to localStorage
   try {
     const stored = getSharedRoomsFromStorage();
     const nextShared = [room, ...stored.filter((r) => r.id !== room.id)];
     localStorage.setItem('304_shared_rooms', JSON.stringify(nextShared));
   } catch (e) {}
 
-  // 2. Broadcast via BroadcastChannel across tabs/windows
+  // 3. Broadcast via BroadcastChannel across tabs/windows
   try {
     const channel = new BroadcastChannel('304_room_sync');
     channel.postMessage({ type: 'ROOM_UPDATED', room });
@@ -81,8 +111,8 @@ function broadcastRoomUpdate(room: RoomDetails) {
 }
 
 export const useRoomStore = create<RoomStore>((set, get) => ({
-  currentRoom: DEFAULT_ROOM,
-  activeRoomsList: [DEFAULT_ROOM],
+  currentRoom: getCurrentRoomFromStorage(),
+  activeRoomsList: getSharedRoomsFromStorage(),
 
   createRoom: async (name, isPrivate, hostUser) => {
     let newCode = generateRoomCode();
@@ -124,6 +154,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       activeRoomsList: [newRoom, ...state.activeRoomsList.filter((r) => r.roomCode !== newCode)],
     }));
 
+    saveCurrentRoomToStorage(newRoom);
     broadcastRoomUpdate(newRoom);
     notify.success(`Room created! Match Code: ${newCode}`, 'ROOM CREATED');
     return newRoom;
@@ -137,21 +168,29 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       return null;
     }
 
-    // 1. Check activeRoomsList in memory
-    let room: RoomDetails | undefined = get().activeRoomsList.find((r) => r.roomCode === cleanCode);
-
-    // 2. Check fresh localStorage shared rooms
-    if (!room) {
-      const stored = getSharedRoomsFromStorage();
-      room = stored.find((r) => r.roomCode === cleanCode);
+    // 1. Check window global shared rooms memory object
+    let room: RoomDetails | undefined;
+    if (typeof window !== 'undefined' && (window as any).__304_SHARED_ROOMS__) {
+      room = (window as any).__304_SHARED_ROOMS__.find((r: RoomDetails) => r.roomCode === cleanCode);
     }
 
-    // 3. Check currentRoom if code matches
+    // 2. Check fresh shared rooms in localStorage for multi-window/tab sync
+    if (!room) {
+      const sharedRooms = getSharedRoomsFromStorage();
+      room = sharedRooms.find((r) => r.roomCode === cleanCode);
+    }
+
+    // 3. Check activeRoomsList in memory
+    if (!room) {
+      room = get().activeRoomsList.find((r) => r.roomCode === cleanCode);
+    }
+
+    // 4. Check currentRoom if code matches
     if (!room && get().currentRoom?.roomCode === cleanCode) {
       room = get().currentRoom || undefined;
     }
 
-    // 4. Fallback to API if room not found locally
+    // 5. Fallback to API endpoint lookup
     if (!room) {
       try {
         const res = await fetch('/api/rooms', {
@@ -190,6 +229,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     const existingPlayer = room.players.find((p) => p.id === user.id);
     if (existingPlayer) {
       set({ currentRoom: room });
+      saveCurrentRoomToStorage(room);
       notify.info(`Rejoined match room: ${room.name}`, 'ROOM REJOINED');
       return room;
     }
@@ -220,6 +260,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       activeRoomsList: [updatedRoom, ...state.activeRoomsList.filter((r) => r.id !== room.id)],
     }));
 
+    saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
     notify.success(`Joined match room: ${room.name}`, 'SUCCESS');
     return updatedRoom;
@@ -240,6 +281,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       activeRoomsList: state.activeRoomsList.map((r) => (r.id === room.id ? updatedRoom : r)),
     }));
 
+    saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
   },
 
@@ -252,6 +294,7 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     const updatedRoom = { ...room, players: updatedPlayers };
 
     set({ currentRoom: updatedRoom });
+    saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
     if (playerToKick) {
       notify.info(`${playerToKick.name} was removed from the table.`, 'PLAYER KICKED');
@@ -286,11 +329,15 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     const updatedRoom = { ...room, players: newPlayers };
 
     set({ currentRoom: updatedRoom });
+    saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
     notify.success('Table filled with AI bots!', 'BOTS ADDED');
   },
 
-  leaveRoom: () => set({ currentRoom: null }),
+  leaveRoom: () => {
+    saveCurrentRoomToStorage(null);
+    set({ currentRoom: null });
+  },
 }));
 
 // Real-time listener for cross-tab window synchronization
@@ -304,6 +351,9 @@ if (typeof window !== 'undefined') {
           const updatedCurrent = state.currentRoom
             ? rooms.find((r) => r.id === state.currentRoom?.id) || state.currentRoom
             : null;
+          if (updatedCurrent) {
+            saveCurrentRoomToStorage(updatedCurrent);
+          }
           return {
             activeRoomsList: rooms,
             currentRoom: updatedCurrent,
@@ -325,6 +375,9 @@ if (typeof window !== 'undefined') {
             ? state.activeRoomsList.map((r) => (r.id === updated.id ? updated : r))
             : [updated, ...state.activeRoomsList];
           const updatedCurrent = state.currentRoom?.id === updated.id ? updated : state.currentRoom;
+          if (updatedCurrent) {
+            saveCurrentRoomToStorage(updatedCurrent);
+          }
           return {
             activeRoomsList: nextList,
             currentRoom: updatedCurrent,

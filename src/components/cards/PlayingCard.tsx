@@ -100,10 +100,15 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
 
       {/* 304 Card Points Badge */}
       {points > 0 && (
-        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded bg-amber-100 border border-amber-300 shadow-sm flex items-center justify-center">
-          <span className="text-[9px] sm:text-[10px] font-bold text-amber-900 leading-none">
-            {points} pts
-          </span>
+        <div
+          className={clsx(
+            'absolute px-1 py-0.5 rounded bg-amber-300 text-amber-950 font-black shadow-sm border border-amber-400 flex items-center justify-center leading-none z-10',
+            size === 'sm'
+              ? 'top-1 right-1 text-[8px]'
+              : 'bottom-1.5 left-1/2 -translate-x-1/2 text-[9px] sm:text-[10px]'
+          )}
+        >
+          <span>{points}pt{points > 1 && size !== 'sm' ? 's' : ''}</span>
         </div>
       )}
 
