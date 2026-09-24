@@ -81,13 +81,13 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
 
   if (!isMyTurnToBid) {
     return (
-      <div className="fixed inset-x-4 top-20 z-40 max-w-sm mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-2xl text-center">
-        <h4 className="text-amber-400 font-bold text-xs uppercase tracking-wider mb-1">
-          {bidStage === '8_CARD' ? '8-Card Bidding Round' : 'Initial 4-Card Bidding'}
-        </h4>
-        <p className="text-slate-200 text-sm font-medium">
-          Waiting for bidding... {currentHighBid > 0 ? `Current Bid: ${currentHighBid} (${bidderName})` : 'No bids placed yet.'}
-        </p>
+      <div className="fixed inset-x-4 top-14 z-40 max-w-xs mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-full px-4 py-2 shadow-xl text-center flex items-center justify-center gap-2 pointer-events-none">
+        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+        <span className="text-slate-200 text-xs font-bold truncate">
+          {currentHighBid > 0
+            ? `BID: ${currentHighBid} (${bidderName || 'Player'})`
+            : `${bidStage === '8_CARD' ? '8-CARD' : '4-CARD'} BIDDING...`}
+        </span>
       </div>
     );
   }

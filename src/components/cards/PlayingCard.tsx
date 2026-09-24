@@ -32,7 +32,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   // Dimensions based on size optimized for clear visibility & legibility on all viewports
   const sizeClasses = {
     sm: 'w-12 h-18 min-w-[48px] sm:w-16 sm:h-22 text-xs sm:text-sm rounded-lg',
-    md: 'w-16 h-24 min-w-[64px] sm:w-20 sm:h-28 text-xs sm:text-sm rounded-xl',
+    md: 'w-[clamp(52px,14vw,76px)] h-[clamp(76px,20vw,108px)] sm:w-20 sm:h-28 text-xs sm:text-sm rounded-xl min-w-[52px]',
     lg: 'w-20 h-28 min-w-[80px] sm:w-24 sm:h-36 text-sm sm:text-base rounded-2xl',
   }[size];
 
@@ -74,10 +74,10 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       onClick={!isDisabled ? onClick : undefined}
       className={clsx(
         sizeClasses,
-        'relative bg-slate-50 text-slate-900 border border-slate-300 card-shadow transition-shadow flex flex-col justify-between p-1 sm:p-1.5 cursor-pointer select-none overflow-hidden',
-        isSelected && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900 card-shadow-hover',
-        isWinningCard && 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900 shadow-emerald-500/50 shadow-lg',
-        isDisabled && 'opacity-50 cursor-not-allowed grayscale',
+        'relative bg-slate-50 text-slate-900 border border-slate-300 card-shadow transition-all flex flex-col justify-between p-1 sm:p-1.5 cursor-pointer select-none overflow-hidden',
+        isSelected && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-950 card-shadow-hover scale-105 z-30',
+        isWinningCard && 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-950 shadow-emerald-500/50 shadow-lg',
+        isDisabled && 'cursor-not-allowed brightness-95 border-slate-300/70 opacity-90',
         className
       )}
     >
