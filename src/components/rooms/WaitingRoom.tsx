@@ -8,13 +8,15 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useGameStore } from '../../stores/useGameStore';
 import { PlayerState } from '../../lib/game-engine/types';
 
+import { supabase } from '../../lib/supabase/client';
+
 interface WaitingRoomProps {
   onStartGame: () => void;
   onLeaveRoom: () => void;
 }
 
 export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRoom }) => {
-  const { currentRoom, togglePlayerReady, fillWithBots, kickPlayer } = useRoomStore();
+  const { currentRoom, togglePlayerReady, fillWithBots, kickPlayer, fetchRoomDetails, startMatch } = useRoomStore();
   const { user } = useAuthStore();
   const { initRoomGame, dispatchAction } = useGameStore();
 
@@ -29,6 +31,55 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
     }
   }, [currentRoom, onLeaveRoom]);
 
+  // Auto-transition all connected clients to game view when room status changes to playing
+  React.useEffect(() => {
+    if (currentRoom?.status === 'playing' || currentRoom?.status === 'bidding') {
+      const localP = currentRoom.players.find((p) => p.id === user?.id || (user?.display_name && p.name === user.display_name));
+      const seat = localP?.seat ?? 0;
+      initRoomGame(currentRoom.roomCode, currentRoom.players, seat);
+      dispatchAction({ type: 'START_GAME' });
+      onStartGame();
+    }
+  }, [currentRoom?.status, currentRoom?.roomCode, currentRoom?.players, user?.id, user?.display_name, initRoomGame, dispatchAction, onStartGame]);
+
+  // Realtime subscription + 1.5s polling interval for multi-browser room sync
+  React.useEffect(() => {
+    if (!currentRoom?.roomCode) return;
+
+    const syncRoom = () => {
+      if (currentRoom?.roomCode) {
+        fetchRoomDetails(currentRoom.roomCode);
+      }
+    };
+
+    // Initial refresh
+    syncRoom();
+
+    // 1.5s polling loop for cross-browser synchronization
+    const pollInterval = setInterval(syncRoom, 1500);
+
+    // Supabase Realtime listener
+    const channel = supabase
+      .channel(`room:${currentRoom.id || currentRoom.roomCode}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'room_players',
+        },
+        () => {
+          syncRoom();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      clearInterval(pollInterval);
+      supabase.removeChannel(channel);
+    };
+  }, [currentRoom?.id, currentRoom?.roomCode, fetchRoomDetails]);
+
   if (!currentRoom || !user) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
@@ -42,8 +93,9 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
     );
   }
 
-  const isHost = currentRoom.hostId === user.id;
-  const localPlayer = currentRoom.players.find((p) => p.id === user.id);
+  const hostPlayer = currentRoom.players.find((p) => p.seat === 0) || currentRoom.players[0];
+  const isHost = currentRoom.hostId === user.id || hostPlayer?.id === user.id;
+  const localPlayer = currentRoom.players.find((p) => p.id === user.id || (user.display_name && p.name === user.display_name));
   const isReady = localPlayer?.isReady ?? false;
   const canStart = currentRoom.players.length === 4 && currentRoom.players.every((p) => p.isReady);
 
@@ -53,8 +105,11 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!canStart) return;
+
+    // Signal start match to server API & broadcast channel for all connected players
+    await startMatch(currentRoom.roomCode);
 
     // Initialize game store with current room players & user seat
     initRoomGame(currentRoom.roomCode, currentRoom.players, localPlayer?.seat ?? 0);
@@ -91,7 +146,7 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
         </button>
       </header>
 
-      {/* Center 6-Digit Room Code Card */}
+      {/* Center 6-Character Room Code Card */}
       <div className="w-full max-w-md my-4 bg-slate-900/90 border border-amber-500/30 rounded-3xl p-6 shadow-2xl text-center">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
           ROOM CODE
@@ -117,7 +172,9 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
       <div className="w-full max-w-3xl grid grid-cols-2 sm:grid-cols-4 gap-4 my-4">
         {[0, 1, 2, 3].map((seatNum) => {
           const player = currentRoom.players.find((p) => p.seat === seatNum);
-          const canKick = player && ((isHost && player.id !== user.id) || player.id.startsWith('bot_'));
+          const isPlayerSelf = player && (player.id === user.id || (localPlayer && player.seat === localPlayer.seat));
+          const canKick = player && ((isHost && !isPlayerSelf) || player.id.startsWith('bot_'));
+          const isHostSeat = player && ((hostPlayer && player.seat === hostPlayer.seat) || player.id === currentRoom.hostId);
 
           return (
             <motion.div
@@ -152,7 +209,7 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
                       alt={player.name}
                       className="w-14 h-14 rounded-full bg-slate-800 border-2 border-slate-700 object-cover"
                     />
-                    {player.id === currentRoom.hostId && (
+                    {isHostSeat && (
                       <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black text-[9px]">
                         HOST
                       </span>

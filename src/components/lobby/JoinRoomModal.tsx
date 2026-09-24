@@ -68,7 +68,7 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              6-Digit Room Code
+              6-Character Room Code
             </label>
             <input
               type="text"

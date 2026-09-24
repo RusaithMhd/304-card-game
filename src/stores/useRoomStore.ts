@@ -18,11 +18,13 @@ export interface RoomDetails {
 interface RoomStore {
   currentRoom: RoomDetails | null;
   activeRoomsList: RoomDetails[];
-  createRoom: (name: string, isPrivate: boolean, hostUser: { id: string; name: string; avatar: string }) => Promise<RoomDetails>;
+  createRoom: (name: string, isPrivate: boolean, hostUser: { id: string; name: string; avatar: string }) => Promise<RoomDetails | null>;
   joinRoomByCode: (code: string, user: { id: string; name: string; avatar: string }) => Promise<RoomDetails | null>;
+  fetchRoomDetails: (code: string) => Promise<RoomDetails | null>;
   togglePlayerReady: (userId: string) => void;
   kickPlayer: (seatNumber: number) => void;
   fillWithBots: () => void;
+  startMatch: (code: string) => Promise<boolean>;
   leaveRoom: () => void;
 }
 
@@ -118,21 +120,28 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     let newCode = generateRoomCode();
     let dbRoomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
-    // Try server API room creation if connected to Supabase
     try {
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', hostId: hostUser.id }),
+        body: JSON.stringify({ action: 'create', hostId: hostUser.id, hostName: hostUser.name }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.room) {
-          newCode = data.room.room_code;
-          dbRoomId = data.room.id;
-        }
+
+      const data = await res.json();
+      console.log('[CREATE ROOM DB RESULT]', data);
+
+      if (!res.ok || !data.success || !data.room) {
+        notify.error(`Database Error: ${data.error?.message || 'Could not persist room to database.'}`, 'CREATE FAILED');
+        return null;
       }
-    } catch (e) {}
+
+      newCode = data.room.room_code;
+      dbRoomId = data.room.id;
+    } catch (e: any) {
+      console.error('[CREATE ROOM ERROR]', e);
+      notify.error(`Network Error: ${e.message || 'Could not connect to database.'}`, 'CREATE FAILED');
+      return null;
+    }
 
     const hostPlayer = createInitialPlayer(hostUser.id, hostUser.name, hostUser.avatar, 0);
     hostPlayer.isReady = true;
@@ -168,60 +177,79 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
       return null;
     }
 
-    // 1. Check window global shared rooms memory object
+    console.log('[JOIN ROOM INITIATED]', {
+      input: code,
+      normalized: cleanCode,
+      user: user.id,
+    });
+
     let room: RoomDetails | undefined;
-    if (typeof window !== 'undefined' && (window as any).__304_SHARED_ROOMS__) {
+
+    // 1. Try server API first so rooms created on server or other windows are fetched instantly
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'join', roomCode: cleanCode, userId: user.id, userName: user.name }),
+      });
+      const data = await res.json();
+      console.log('[JOIN ROOM DB RESULT]', { status: res.status, data });
+
+      if (res.ok && data.success && data.room) {
+        const membersList = data.members || [];
+        const players: PlayerState[] = membersList.map((m: any, idx: number) => {
+          const profileName = m.profiles?.display_name || m.profiles?.username || `Player ${m.seat + 1}`;
+          const profileAvatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.seat}`;
+          const p = createInitialPlayer(m.user_id || `usr_${m.seat}`, profileName, profileAvatar, m.seat ?? idx);
+          p.isReady = m.is_ready ?? false;
+          return p;
+        });
+
+        room = {
+          id: data.room.id,
+          roomCode: data.room.room_code,
+          name: `Match ${data.room.room_code}`,
+          hostId: data.room.host_id,
+          isPrivate: true,
+          maxPlayers: 4,
+          status: (data.room.status as any) || 'waiting',
+          players: players.length > 0 ? players : [createInitialPlayer(user.id, user.name, user.avatar, 0)],
+          createdAt: data.room.created_at || new Date().toISOString(),
+        };
+      } else if (data.error?.code === 'ROOM_FULL') {
+        notify.warning(`Room "${cleanCode}" is full (maximum 4 players allowed).`, 'ROOM FULL');
+        return null;
+      } else if (data.error?.code === 'ROOM_IN_PROGRESS') {
+        notify.warning(`Match in room "${cleanCode}" is already in progress.`, 'ROOM IN PROGRESS');
+        return null;
+      }
+    } catch (e: any) {
+      console.error('[JOIN ROOM API ERROR]', e);
+    }
+
+    // 2. Check window global shared rooms memory object
+    if (!room && typeof window !== 'undefined' && (window as any).__304_SHARED_ROOMS__) {
       room = (window as any).__304_SHARED_ROOMS__.find((r: RoomDetails) => r.roomCode === cleanCode);
     }
 
-    // 2. Check fresh shared rooms in localStorage for multi-window/tab sync
+    // 3. Check fresh shared rooms in localStorage for multi-window/tab sync
     if (!room) {
       const sharedRooms = getSharedRoomsFromStorage();
       room = sharedRooms.find((r) => r.roomCode === cleanCode);
     }
 
-    // 3. Check activeRoomsList in memory
+    // 4. Check activeRoomsList in memory
     if (!room) {
       room = get().activeRoomsList.find((r) => r.roomCode === cleanCode);
     }
 
-    // 4. Check currentRoom if code matches
+    // 5. Check currentRoom if code matches
     if (!room && get().currentRoom?.roomCode === cleanCode) {
       room = get().currentRoom || undefined;
     }
 
-    // 5. Fallback to API endpoint lookup
     if (!room) {
-      try {
-        const res = await fetch('/api/rooms', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'join', roomCode: cleanCode, userId: user.id }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.room) {
-            const apiRoom: RoomDetails = {
-              id: data.room.id,
-              roomCode: data.room.room_code,
-              name: `Match ${data.room.room_code}`,
-              hostId: data.room.host_id,
-              isPrivate: true,
-              maxPlayers: 4,
-              status: 'waiting',
-              players: (data.members || []).map((m: any, idx: number) =>
-                createInitialPlayer(m.user_id || `user_${idx}`, `Player ${idx + 1}`, 'https://api.dicebear.com/7.x/bottts/svg?seed=' + idx, m.seat || idx)
-              ),
-              createdAt: data.room.created_at || new Date().toISOString(),
-            };
-            room = apiRoom;
-          }
-        }
-      } catch (e) {}
-    }
-
-    if (!room) {
-      notify.error(`Room code "${cleanCode}" not found. Please verify the code and try again.`, 'ROOM NOT FOUND');
+      notify.error(`Room code "${cleanCode}" does not exist. Please verify the code and try again.`, 'ROOM DOES NOT EXIST');
       return null;
     }
 
@@ -266,12 +294,15 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     return updatedRoom;
   },
 
-  togglePlayerReady: (userId) => {
+  togglePlayerReady: async (userId) => {
     const room = get().currentRoom;
     if (!room) return;
 
+    const targetPlayer = room.players.find((p) => p.id === userId);
+    const nextReady = !targetPlayer?.isReady;
+
     const updatedPlayers = room.players.map((p) =>
-      p.id === userId ? { ...p, isReady: !p.isReady } : p
+      p.id === userId ? { ...p, isReady: nextReady } : p
     );
 
     const updatedRoom = { ...room, players: updatedPlayers };
@@ -283,9 +314,17 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
 
     saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
+
+    try {
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_ready', roomCode: room.roomCode, userId, isReady: nextReady }),
+      });
+    } catch (e) {}
   },
 
-  kickPlayer: (seatNumber) => {
+  kickPlayer: async (seatNumber) => {
     const room = get().currentRoom;
     if (!room) return;
 
@@ -299,9 +338,17 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     if (playerToKick) {
       notify.info(`${playerToKick.name} was removed from the table.`, 'PLAYER KICKED');
     }
+
+    try {
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'kick', roomCode: room.roomCode, seat: seatNumber }),
+      });
+    } catch (e) {}
   },
 
-  fillWithBots: () => {
+  fillWithBots: async () => {
     const room = get().currentRoom;
     if (!room) return;
 
@@ -332,11 +379,90 @@ export const useRoomStore = create<RoomStore>((set, get) => ({
     saveCurrentRoomToStorage(updatedRoom);
     broadcastRoomUpdate(updatedRoom);
     notify.success('Table filled with AI bots!', 'BOTS ADDED');
+
+    try {
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fill_bots', roomCode: room.roomCode }),
+      });
+    } catch (e) {}
+  },
+
+  startMatch: async (code) => {
+    const cleanCode = code.trim().toUpperCase();
+    const room = get().currentRoom;
+    if (!room) return false;
+
+    const updatedRoom: RoomDetails = {
+      ...room,
+      status: 'playing',
+    };
+
+    set({ currentRoom: updatedRoom });
+    saveCurrentRoomToStorage(updatedRoom);
+    broadcastRoomUpdate(updatedRoom);
+
+    try {
+      await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start_game', roomCode: cleanCode }),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   },
 
   leaveRoom: () => {
     saveCurrentRoomToStorage(null);
     set({ currentRoom: null });
+  },
+
+  fetchRoomDetails: async (code) => {
+    const cleanCode = code.trim().toUpperCase();
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'get', roomCode: cleanCode }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.room) {
+          const membersList = data.members || [];
+          const players: PlayerState[] = membersList.map((m: any, idx: number) => {
+            const profileName = m.profiles?.display_name || m.profiles?.username || `Player ${m.seat + 1}`;
+            const profileAvatar = m.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.seat}`;
+            const p = createInitialPlayer(m.user_id || `usr_${m.seat}`, profileName, profileAvatar, m.seat ?? idx);
+            p.isReady = m.is_ready ?? false;
+            return p;
+          });
+
+          const updatedRoom: RoomDetails = {
+            id: data.room.id,
+            roomCode: data.room.room_code,
+            name: `Match ${data.room.room_code}`,
+            hostId: data.room.host_id,
+            isPrivate: true,
+            maxPlayers: 4,
+            status: (data.room.status as any) || 'waiting',
+            players: players,
+            createdAt: data.room.created_at || new Date().toISOString(),
+          };
+
+          set((state) => ({
+            currentRoom: updatedRoom,
+            activeRoomsList: [updatedRoom, ...state.activeRoomsList.filter((r) => r.id !== updatedRoom.id)],
+          }));
+
+          saveCurrentRoomToStorage(updatedRoom);
+          return updatedRoom;
+        }
+      }
+    } catch (e) {}
+    return null;
   },
 }));
 

@@ -28,6 +28,7 @@ interface GameStore {
   toggleBotMode: (enabled?: boolean) => void;
   triggerBotTurnIfNeeded: () => void;
   getRelativeSeatPosition: (actualSeat: number) => 'south' | 'east' | 'north' | 'west';
+  syncServerGameState: (serverGameState: GameEngineState) => void;
 }
 
 const DEFAULT_PLAYERS: PlayerState[] = [
@@ -86,6 +87,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const nextState = applyGameAction(currentState, action);
       set({ gameState: nextState, selectedCardId: null });
 
+      // 1. Broadcast to local browser windows/tabs
+      if (typeof window !== 'undefined' && currentState.roomId) {
+        try {
+          const channel = new BroadcastChannel(`304_game_${currentState.roomId}`);
+          channel.postMessage({ type: 'GAME_STATE_UPDATE', gameState: nextState, action });
+          channel.close();
+        } catch (e) {}
+      }
+
+      // 2. Broadcast & persist to server API for multi-device/multi-browser multiplayer
+      if (currentState.roomId) {
+        try {
+          fetch('/api/rooms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'game_action', roomCode: currentState.roomId, gameAction: action }),
+          });
+        } catch (e) {}
+      }
+
       // Automatically advance to NEXT_TRICK after 1.4s when a trick completes
       if (nextState.status === 'TRICK_COMPLETE') {
         setTimeout(() => {
@@ -102,6 +123,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
     } catch (err: any) {
       console.warn('Game Action Error:', err.message);
+    }
+  },
+
+  syncServerGameState: (serverGameState) => {
+    if (!serverGameState) return;
+    const current = get().gameState;
+    if (!current || (serverGameState.updatedAt && serverGameState.updatedAt > (current.updatedAt || 0))) {
+      set({ gameState: serverGameState });
     }
   },
 

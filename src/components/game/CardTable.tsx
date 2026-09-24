@@ -38,7 +38,49 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
     toggleBotMode,
     dispatchAction,
     getRelativeSeatPosition,
+    syncServerGameState,
   } = useGameStore();
+
+  // Multi-window / multi-device realtime game state sync
+  React.useEffect(() => {
+    if (!gameState?.roomId) return;
+    const roomId = gameState.roomId;
+
+    // 1. Local BroadcastChannel listener for multi-window tab sync
+    let channel: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        channel = new BroadcastChannel(`304_game_${roomId}`);
+        channel.onmessage = (event) => {
+          if (event.data?.type === 'GAME_STATE_UPDATE' && event.data.gameState) {
+            syncServerGameState(event.data.gameState);
+          }
+        };
+      } catch (e) {}
+    }
+
+    // 2. Server API polling sync (1.2s interval)
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get', roomCode: roomId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.gameState) {
+            syncServerGameState(data.gameState);
+          }
+        }
+      } catch (e) {}
+    }, 1200);
+
+    return () => {
+      clearInterval(interval);
+      if (channel) channel.close();
+    };
+  }, [gameState?.roomId, syncServerGameState]);
 
   const { unreadCount, toggleChat, activeReactions } = useChatStore();
   const { isSpeakingMap } = useVoiceStore();

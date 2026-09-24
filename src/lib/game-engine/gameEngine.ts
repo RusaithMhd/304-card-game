@@ -85,8 +85,9 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         throw new Error('304 requires exactly 4 players');
       }
 
-      // Reset round state
-      const freshDeck = shuffleDeck(create32CardDeck());
+      // Reset round state with deterministic room seed for multi-client card sync
+      const deckSeed = `${nextState.roomId}_round_${nextState.teamAMatchPoints}_${nextState.teamBMatchPoints}`;
+      const freshDeck = shuffleDeck(create32CardDeck(), deckSeed);
       const { hands, remainingDeck } = dealInitialCards(freshDeck);
 
       nextState.deck = remainingDeck;
