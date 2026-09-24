@@ -21,16 +21,22 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
   const { joinRoomByCode } = useRoomStore();
   const { user } = useAuthStore();
 
-  if (!isOpen || !user) return null;
+  if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const currentUser = user || {
+    id: `guest_${Date.now()}`,
+    display_name: 'Guest Player',
+    avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=guest',
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim()) return;
 
-    const joined = joinRoomByCode(code, {
-      id: user.id,
-      name: user.display_name,
-      avatar: user.avatar_url,
+    const joined = await joinRoomByCode(code, {
+      id: currentUser.id,
+      name: currentUser.display_name,
+      avatar: currentUser.avatar_url,
     });
 
     if (joined) {

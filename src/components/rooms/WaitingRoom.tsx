@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Check, Share2, Users, Bot, Play, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { Copy, Check, Share2, Users, Bot, Play, ShieldAlert, ArrowLeft, UserMinus } from 'lucide-react';
 import { useRoomStore } from '../../stores/useRoomStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useGameStore } from '../../stores/useGameStore';
@@ -14,7 +14,7 @@ interface WaitingRoomProps {
 }
 
 export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRoom }) => {
-  const { currentRoom, togglePlayerReady, fillWithBots } = useRoomStore();
+  const { currentRoom, togglePlayerReady, fillWithBots, kickPlayer } = useRoomStore();
   const { user } = useAuthStore();
   const { initRoomGame, dispatchAction } = useGameStore();
 
@@ -97,6 +97,7 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
       <div className="w-full max-w-3xl grid grid-cols-2 sm:grid-cols-4 gap-4 my-4">
         {[0, 1, 2, 3].map((seatNum) => {
           const player = currentRoom.players.find((p) => p.seat === seatNum);
+          const canKick = player && ((isHost && player.id !== user.id) || player.id.startsWith('bot_'));
 
           return (
             <motion.div
@@ -111,6 +112,20 @@ export const WaitingRoom: React.FC<WaitingRoomProps> = ({ onStartGame, onLeaveRo
             >
               {player ? (
                 <>
+                  {/* Remove / Kick Participant Button */}
+                  {canKick && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        kickPlayer(player.seat);
+                      }}
+                      className="absolute top-3 right-3 p-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white transition-all cursor-pointer shadow-md"
+                      title={`Remove ${player.name} from room`}
+                    >
+                      <UserMinus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+
                   <div className="relative mb-2">
                     <img
                       src={player.avatar}

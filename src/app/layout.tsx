@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { ToastContainer } from '../components/notifications/ToastContainer';
 
 export const metadata: Metadata = {
   title: '304 Friends — Premium Multiplayer Card Game',
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="antialiased bg-slate-950 text-slate-100 min-h-screen">
+        <ToastContainer />
         {children}
       </body>
     </html>

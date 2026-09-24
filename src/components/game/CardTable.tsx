@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '../../stores/useGameStore';
 import { useChatStore } from '../../stores/useChatStore';
 import { useVoiceStore } from '../../stores/useVoiceStore';
+import { notify } from '../../stores/useNotificationStore';
 import { CardHand } from './CardHand';
 import { PlayingCard } from '../cards/PlayingCard';
 import { BiddingModal } from './BiddingModal';
@@ -249,7 +250,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
                     try {
                       dispatchAction({ type: 'DECLARE_SPOILT_TRUMPS', seat: localSeat });
                     } catch (e: any) {
-                      alert(e.message || 'Cannot declare Spoilt Trumps');
+                      notify.error(e.message || 'Cannot declare Spoilt Trumps', 'ACTION FAILED');
                     }
                   }}
                   className="px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-bold text-[10px] border border-slate-700 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"

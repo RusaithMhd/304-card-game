@@ -75,14 +75,14 @@ export default function HomePage() {
   // 2. Determine if Auth Portal should be shown
   const showAuthPortal = !isAuthenticated && !isGuestMode;
 
-  const handleJoinRoom = (code: string) => {
+  const handleJoinRoom = async (code: string) => {
     const playerProfile = user || {
       id: 'guest_user',
       display_name: 'Guest Player',
       avatar_url: 'https://api.dicebear.com/7.x/bottts/svg?seed=guest',
     };
 
-    const room = joinRoomByCode(code, {
+    const room = await joinRoomByCode(code, {
       id: playerProfile.id,
       name: playerProfile.display_name,
       avatar: playerProfile.avatar_url,

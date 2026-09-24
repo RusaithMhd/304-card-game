@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserPlus, Check, X, Gamepad2, Search } from 'lucide-react';
 import { useFriendStore } from '../../stores/useFriendStore';
+import { notify } from '../../stores/useNotificationStore';
 
 export const FriendsView: React.FC = () => {
   const { friends, pendingRequests, sendFriendRequest, acceptRequest, declineRequest } = useFriendStore();
@@ -157,7 +158,7 @@ export const FriendsView: React.FC = () => {
 
               {/* Invite Action */}
               <button
-                onClick={() => alert(`Invite sent to ${f.display_name}!`)}
+                onClick={() => notify.success(`Invite sent to ${f.display_name}!`, 'INVITE SENT')}
                 className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 font-bold text-[10px] transition-all cursor-pointer"
               >
                 INVITE
