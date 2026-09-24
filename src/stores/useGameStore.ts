@@ -131,6 +131,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const current = get().gameState;
     if (!current || (serverGameState.updatedAt && serverGameState.updatedAt > (current.updatedAt || 0))) {
       set({ gameState: serverGameState });
+      setTimeout(() => {
+        get().triggerBotTurnIfNeeded();
+      }, 300);
     }
   },
 

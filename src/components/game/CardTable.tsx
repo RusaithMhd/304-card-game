@@ -18,6 +18,7 @@ import { VoiceControlsBar } from '../voice/VoiceControlsBar';
 import { VoiceSettingsModal } from '../voice/VoiceSettingsModal';
 import { FinishGameConfirmModal } from './FinishGameConfirmModal';
 import { HonestGameModal } from './HonestGameModal';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { canDeclarePCC } from '../../lib/game-engine/pccRules';
 import { canDeclareHonestGame, canViewTrumpCard } from '../../lib/game-engine/honestGameRules';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../../lib/game-engine/cardValues';
@@ -29,6 +30,7 @@ interface CardTableProps {
 }
 
 export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
+  const { user } = useAuthStore();
   const {
     gameState,
     localSeat,
@@ -94,20 +96,30 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
   if (!gameState) return null;
 
-  const localPlayer = gameState.players.find((p) => p.seat === localSeat) || gameState.players[0];
-  const isMyTurn = gameState.currentTurnSeat === localSeat;
-  const isPccAvailable = canDeclarePCC(gameState, localSeat);
-  const isHonestAvailable = canDeclareHonestGame(gameState, localSeat);
-  const isAuthorizedToSeeTrump = canViewTrumpCard(gameState, localSeat);
-  const isPendingVoidChoiceForMe = gameState.pendingVoidChoiceSeat === localSeat;
-  const isPendingFlipSelectForMe = gameState.pendingFlipSelectSeat === localSeat;
+  const userSeat = React.useMemo(() => {
+    if (!user || !gameState?.players) return localSeat;
+    const match = gameState.players.find(
+      (p) =>
+        p.id === user.id ||
+        (user.display_name && p.name.trim().toLowerCase() === user.display_name.trim().toLowerCase())
+    );
+    return match ? match.seat : localSeat;
+  }, [user, gameState?.players, localSeat]);
+
+  const localPlayer = gameState.players.find((p) => p.seat === userSeat) || gameState.players[0];
+  const isMyTurn = gameState.currentTurnSeat === userSeat;
+  const isPccAvailable = canDeclarePCC(gameState, userSeat);
+  const isHonestAvailable = canDeclareHonestGame(gameState, userSeat);
+  const isAuthorizedToSeeTrump = canViewTrumpCard(gameState, userSeat);
+  const isPendingVoidChoiceForMe = gameState.pendingVoidChoiceSeat === userSeat;
+  const isPendingFlipSelectForMe = gameState.pendingFlipSelectSeat === userSeat;
 
   const isBiddingStage = gameState.status === 'FOUR_CARD_BIDDING' || gameState.status === 'EIGHT_CARD_BIDDING' || gameState.status === 'REDEAL_CHECK';
-  const isMyTurnToBid = isBiddingStage && gameState.currentTurnSeat === localSeat;
-  const isRedealEligibleForMe = gameState.status === 'REDEAL_CHECK' && gameState.redealEligibleSeat === localSeat;
+  const isMyTurnToBid = isBiddingStage && gameState.currentTurnSeat === userSeat;
+  const isRedealEligibleForMe = gameState.status === 'REDEAL_CHECK' && gameState.redealEligibleSeat === userSeat;
 
   const isTrumpSelectionStage = gameState.status === 'TRUMP_SELECTION_4' || gameState.status === 'TRUMP_REPLACEMENT_8';
-  const isMyTurnToSelectTrump = isTrumpSelectionStage && gameState.currentTurnSeat === localSeat;
+  const isMyTurnToSelectTrump = isTrumpSelectionStage && gameState.currentTurnSeat === userSeat;
   const proposedTrumpCard = isMyTurnToSelectTrump && selectedCardId ? localPlayer.cards.find(c => c.id === selectedCardId) : null;
 
   const leadSuit = gameState.currentTrick?.cardsPlayed.length
@@ -504,14 +516,14 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
 
               <div className="flex flex-col gap-3">
                 <button
-                  onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: localSeat, option: 'USE_TRUMP' })}
+                  onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'USE_TRUMP' })}
                   className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-sm uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
                 >
                   <span>🔒 USE TRUMP</span>
                 </button>
 
                 <button
-                  onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: localSeat, option: 'FLIP_CARD' })}
+                  onClick={() => dispatchAction({ type: 'CHOOSE_VOID_OPTION', seat: userSeat, option: 'FLIP_CARD' })}
                   className="w-full py-3.5 rounded-2xl bg-slate-800 border border-slate-600 text-slate-100 font-black text-sm uppercase tracking-wider hover:bg-slate-700 transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center gap-2"
                 >
                   <span>🃏 FLIP A CARD</span>
@@ -534,7 +546,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           isGambleSelectMode={isPendingFlipSelectForMe}
           isTrumpSelectMode={isMyTurnToSelectTrump}
           onSelectCard={(cardId) => setSelectedCard(cardId)}
-          onPlayCard={(cardId) => dispatchAction({ type: 'PLAY_CARD', seat: localSeat, cardId })}
+          onPlayCard={(cardId) => dispatchAction({ type: 'PLAY_CARD', seat: userSeat, cardId })}
         />
       </footer>
 
@@ -552,11 +564,11 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           isPartnerHighBidder={isPartnerHighBidderIn8Card}
           playerTurnCount={localPlayer.bidTurnsCount || 0}
           isRedealEligible={isRedealEligibleForMe}
-          onPlaceBid={(amount) => dispatchAction({ type: 'PLACE_BID', seat: localSeat, amount })}
-          onPass={() => dispatchAction({ type: 'PASS_BID', seat: localSeat })}
-          onRequestRedeal={() => dispatchAction({ type: 'REQUEST_REDEAL', seat: localSeat })}
-          onSkipRedeal={() => dispatchAction({ type: 'SKIP_REDEAL', seat: localSeat })}
-          onDeclarePartnerCloseCaps={() => dispatchAction({ type: 'DECLARE_PARTNER_CLOSE_CAPS', seat: localSeat })}
+          onPlaceBid={(amount) => dispatchAction({ type: 'PLACE_BID', seat: userSeat, amount })}
+          onPass={() => dispatchAction({ type: 'PASS_BID', seat: userSeat })}
+          onRequestRedeal={() => dispatchAction({ type: 'REQUEST_REDEAL', seat: userSeat })}
+          onSkipRedeal={() => dispatchAction({ type: 'SKIP_REDEAL', seat: userSeat })}
+          onDeclarePartnerCloseCaps={() => dispatchAction({ type: 'DECLARE_PARTNER_CLOSE_CAPS', seat: userSeat })}
           onDeclareHonestGame={isHonestAvailable ? () => setIsHonestConfirmOpen(true) : undefined}
         />
       )}
@@ -571,7 +583,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           onSelectTrumpCard={(cardId, mode) => {
             dispatchAction({
               type: 'SELECT_TRUMP',
-              seat: localSeat,
+              seat: userSeat,
               cardId,
               mode,
             });
@@ -582,7 +594,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       <HonestGameModal
         isOpen={isHonestConfirmOpen}
         onConfirm={() => {
-          dispatchAction({ type: 'DECLARE_HONEST_GAME', seat: localSeat });
+          dispatchAction({ type: 'DECLARE_HONEST_GAME', seat: userSeat });
           setIsHonestConfirmOpen(false);
         }}
         onCancel={() => setIsHonestConfirmOpen(false)}
@@ -592,7 +604,7 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
         isOpen={isFinishConfirmOpen}
         onClose={() => setIsFinishConfirmOpen(false)}
         onConfirmFinish={() => {
-          dispatchAction({ type: 'CONFIRM_FINISH_GAME', seat: localSeat });
+          dispatchAction({ type: 'CONFIRM_FINISH_GAME', seat: userSeat });
           setIsFinishConfirmOpen(false);
         }}
       />

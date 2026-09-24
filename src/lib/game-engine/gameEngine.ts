@@ -417,7 +417,10 @@ export function applyGameAction(state: GameEngineState, action: GameAction): Gam
         nextState.bidding.bidStage = '8_CARD';
         nextState.bidding.passes = [];
         nextState.currentTurnSeat = nextState.bidding.bidderSeat!;
-        nextState.lastActionMessage = `Trump indicator set (${selectedTrumpCard.rank}${SUIT_SYMBOLS[selectedTrumpCard.suit]} - ${nextState.trumpMode}). Remaining 4 cards dealt! 8-Card Bidding begins (min 250).`;
+        const trumpDesc = nextState.trumpRevealed || nextState.trumpMode === 'OPEN'
+          ? `${selectedTrumpCard.rank}${SUIT_SYMBOLS[selectedTrumpCard.suit]} - OPEN`
+          : 'CLOSED TRUMP 🔒';
+        nextState.lastActionMessage = `Trump indicator set (${trumpDesc}). Remaining 4 cards dealt! 8-Card Bidding begins (min 250).`;
       } else {
         // TRUMP_REPLACEMENT_8 -> Proceed directly to Trick 1
         startTrickPlay(nextState);
@@ -770,7 +773,11 @@ function startTrickPlay(state: GameEngineState) {
     points: 0,
   };
 
-  state.lastActionMessage = `Trump selected (${state.trumpCard?.rank}${SUIT_SYMBOLS[state.trumpSuit!]} - ${state.trumpMode}). Trick 1 begins!`;
+  const trumpDesc = state.trumpRevealed || state.trumpMode === 'OPEN'
+    ? `${state.trumpCard?.rank}${SUIT_SYMBOLS[state.trumpSuit!]} - OPEN`
+    : 'CLOSED TRUMP 🔒';
+
+  state.lastActionMessage = `Trump selected (${trumpDesc}). Trick 1 begins!`;
 }
 
 function checkAndResolveTrick(state: GameEngineState) {

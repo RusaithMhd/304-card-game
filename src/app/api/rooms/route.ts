@@ -3,6 +3,8 @@ import { supabaseAdmin } from '../../../lib/supabase/admin';
 import { createInitialPlayer, createInitialState, applyGameAction } from '../../../lib/game-engine/gameEngine';
 import { PlayerState } from '../../../lib/game-engine/types';
 
+export const dynamic = 'force-dynamic';
+
 interface ServerPlayer {
   user_id: string;
   seat: number;
