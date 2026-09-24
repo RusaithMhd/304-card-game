@@ -15,7 +15,7 @@ export const TurnStatusBanner: React.FC<TurnStatusBannerProps> = ({
   lastActionMessage,
 }) => {
   return (
-    <div className="absolute top-2 sm:top-3 inset-x-0 flex flex-col items-center justify-center pointer-events-none z-20 px-4">
+    <div className="absolute top-[76px] sm:top-20 inset-x-0 flex flex-col items-center justify-center pointer-events-none z-20 px-2">
       <motion.div
         key={isMyTurn ? 'my_turn' : currentTurnPlayerName}
         initial={{ y: -10, opacity: 0 }}

@@ -67,28 +67,28 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
       </div>
 
       {/* Center Section: Match Status Pills (Bid, Trump, Trick) */}
-      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
+      <div className="flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
         {/* Room Code */}
-        <div className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900 border border-amber-500/40 text-amber-400 font-black text-[10px] sm:text-xs tracking-wider uppercase shrink-0">
+        <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900 border border-amber-500/40 text-amber-400 font-black text-[10px] sm:text-xs tracking-wider uppercase shrink-0 whitespace-nowrap">
           304 #{gameState.roomId}
         </div>
 
         {/* High Bid */}
         {gameState.bidding.currentHighBid > 0 && (
-          <div className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1">
+          <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1 whitespace-nowrap">
             <span className="text-slate-400 font-medium">BID</span>
             <span className="text-amber-400 font-black">{gameState.bidding.currentHighBid}</span>
           </div>
         )}
 
         {/* Active Trick Count */}
-        <div className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1">
+        <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1 whitespace-nowrap">
           <span className="text-slate-400 font-medium">TRICK</span>
           <span className="text-slate-100 font-black">{Math.min(currentTrickNum, 8)}/8</span>
         </div>
 
         {/* Trump Quick Badge in Header */}
-        <div className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1">
+        <div className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-slate-900/90 border border-slate-700/60 text-slate-200 font-extrabold text-[10px] sm:text-xs shrink-0 flex items-center gap-1 whitespace-nowrap">
           <span className="text-slate-400 font-medium">TRUMP</span>
           {gameState.trumpRevealed || gameState.trumpMode === 'OPEN' ? (
             <span className={`font-black text-xs ${SUIT_COLORS[gameState.trumpSuit || 'H'] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
@@ -125,10 +125,10 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
 
         <button
           onClick={onToggleDrawer}
-          className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer active:scale-95 shrink-0"
-          title="Match Drawer"
+          className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-700/60 text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-all cursor-pointer active:scale-95 shrink-0 shadow-sm"
+          title="Game Settings"
         >
-          <Settings className="w-4 h-4 text-slate-400" />
+          <Settings className="w-4 h-4 text-amber-400 animate-spin-slow" />
         </button>
       </div>
     </header>

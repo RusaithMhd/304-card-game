@@ -26,16 +26,16 @@ export const TrumpStatus: React.FC<TrumpStatusProps> = ({
   // 1. CLOSED TRUMP STATE
   if (gameState.trumpMode === 'CLOSED' && !gameState.trumpRevealed) {
     return (
-      <div className="absolute top-2 left-2 sm:top-3 sm:left-4 z-30 flex flex-col items-start gap-1 max-w-[140px] sm:max-w-[180px]">
+      <div className="absolute top-1.5 left-1.5 sm:top-3 sm:left-4 z-30 flex flex-col items-start gap-1 max-w-[125px] sm:max-w-[170px]">
         {/* Closed Trump Badge */}
-        <div className="px-2.5 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 flex items-center gap-1.5 shadow-xl">
-          <div className="w-4 h-6 rounded bg-gradient-to-br from-amber-700 to-amber-950 border border-amber-400/80 flex items-center justify-center text-[9px] text-amber-200 shrink-0">
+        <div className="px-2 py-1 rounded-xl bg-slate-950/90 border border-amber-500/50 flex items-center gap-1.5 shadow-xl max-w-full">
+          <div className="w-3.5 h-5 rounded bg-gradient-to-br from-amber-700 to-amber-950 border border-amber-400/80 flex items-center justify-center text-[9px] text-amber-200 shrink-0">
             🂠
           </div>
-          <div className="flex flex-col text-[8px] sm:text-[9px] leading-tight truncate">
+          <div className="flex flex-col text-[8px] sm:text-[9px] leading-tight min-w-0">
             <span className="font-extrabold text-amber-400 truncate flex items-center gap-1">
-              <Lock className="w-2.5 h-2.5" />
-              CLOSED TRUMP
+              <Lock className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">CLOSED TRUMP</span>
             </span>
             <span className="text-slate-300 font-bold truncate">
               {trumpMakerPlayer ? `MAKER: ${trumpMakerPlayer.name}` : `BID: ${gameState.bidding.currentHighBid}`}
@@ -51,7 +51,7 @@ export const TrumpStatus: React.FC<TrumpStatusProps> = ({
                 e.stopPropagation();
                 onSeeTrump();
               }}
-              className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/60 hover:bg-amber-500/30 text-amber-300 font-extrabold text-[8px] uppercase tracking-wider flex items-center gap-1 cursor-pointer active:scale-95"
+              className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/60 hover:bg-amber-500/30 text-amber-300 font-extrabold text-[8px] uppercase tracking-wider flex items-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
               title="Peek at your secret trump card privately (hidden from other players)"
             >
               <Eye className="w-2.5 h-2.5 stroke-[3]" />
@@ -63,7 +63,7 @@ export const TrumpStatus: React.FC<TrumpStatusProps> = ({
                 e.stopPropagation();
                 onRevealTrump();
               }}
-              className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-slate-950 font-black text-[8px] uppercase tracking-wider shadow-md hover:brightness-110 flex items-center gap-1 cursor-pointer active:scale-95"
+              className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-slate-950 font-black text-[8px] uppercase tracking-wider shadow-md hover:brightness-110 flex items-center gap-1 cursor-pointer active:scale-95 whitespace-nowrap"
               title="Reveal trump suit to all players on the table"
             >
               <Megaphone className="w-2.5 h-2.5 fill-current" />
@@ -72,8 +72,8 @@ export const TrumpStatus: React.FC<TrumpStatusProps> = ({
           </div>
         ) : (
           /* NON-TRUMP MAKERS: Passive non-blocking status pill ONLY */
-          <div className="px-2 py-0.5 rounded-md bg-slate-900/80 border border-slate-700/60 text-[8px] font-bold text-slate-400 flex items-center gap-1">
-            <span>Waiting for Trump Maker to reveal...</span>
+          <div className="px-2 py-0.5 rounded-md bg-slate-900/80 border border-slate-700/60 text-[8px] font-bold text-slate-400 flex items-center gap-1 max-w-full">
+            <span className="truncate">Waiting for Trump Maker...</span>
           </div>
         )}
       </div>

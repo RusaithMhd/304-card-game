@@ -24,6 +24,7 @@ import { TrickArea } from './TrickArea';
 import { TrumpStatus } from './TrumpStatus';
 import { VoidChoiceOverlay } from './VoidChoiceOverlay';
 import { TurnStatusBanner } from './TurnStatusBanner';
+import { GameSettingsDrawer } from './GameSettingsDrawer';
 import { createInitialPlayer } from '../../lib/game-engine/gameEngine';
 import { canDeclarePCC } from '../../lib/game-engine/pccRules';
 import { canDeclareHonestGame } from '../../lib/game-engine/honestGameRules';
@@ -254,9 +255,9 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
       />
 
       {/* 2. MAIN CENTERED RESPONSIVE GAME TABLE AREA */}
-      <main className="relative flex-1 w-full max-w-6xl mx-auto px-2 py-1 flex items-center justify-center overflow-hidden">
-        {/* Centered Felt Card Table Container (Mobile 1.25:1 / Desktop 16:9 Aspect Ratio) */}
-        <div className="relative w-[calc(100%-12px)] sm:w-full max-w-3xl aspect-[1.25/1] sm:aspect-[16/9] max-h-[58vh] sm:max-h-none rounded-[2rem] sm:rounded-[3.5rem] bg-[radial-gradient(ellipse_at_center,#123826_0%,#091d13_65%,#030a06_100%)] border border-amber-500/20 shadow-[0_0_60px_rgba(0,0,0,0.8)] flex items-center justify-center p-3 sm:p-4 overflow-hidden">
+      <main className="relative flex-1 w-full max-w-6xl mx-auto px-1.5 py-1 flex items-center justify-center overflow-hidden min-h-0">
+        {/* Felt Card Table Container (Fills height on mobile, 16:9 on desktop) */}
+        <div className="relative w-full h-full max-w-4xl sm:aspect-[16/9] sm:max-h-[70vh] rounded-2xl sm:rounded-[3.5rem] bg-[radial-gradient(ellipse_at_center,#123826_0%,#091d13_65%,#030a06_100%)] border border-amber-500/20 shadow-[0_0_60px_rgba(0,0,0,0.8)] flex items-center justify-center p-2 sm:p-4 overflow-hidden my-auto">
           {/* Outer Gold Felt Border Ring */}
           <div className="absolute inset-2 sm:inset-3 rounded-[2rem] sm:rounded-[3rem] border border-amber-500/15 pointer-events-none" />
 
@@ -460,6 +461,21 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* GAME SETTINGS DRAWER */}
+      <GameSettingsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        gameState={gameState}
+        isMuted={isMuted}
+        onToggleMute={() => setIsMuted(!isMuted)}
+        isBotModeEnabled={isBotModeEnabled}
+        onToggleBotMode={toggleBotMode}
+        onLeaveMatch={() => {
+          setIsDrawerOpen(false);
+          setIsLeaveConfirmOpen(true);
+        }}
+      />
 
       {/* CHAT & VOICE PANELS */}
       <ChatSheet localSeat={userSeat} />
