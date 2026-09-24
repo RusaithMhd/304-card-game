@@ -126,8 +126,11 @@ export const CardTable: React.FC<CardTableProps> = ({ onBackToLobby }) => {
             if (event.data?.type === 'CHAT_MESSAGE' && event.data.message) {
               useChatStore.getState().syncRoomMessages([event.data.message]);
             } else if (event.data?.type === 'FLOATING_REACTION' && event.data.reaction) {
+              const incomingReaction = event.data.reaction;
               useChatStore.setState((state) => ({
-                activeReactions: [...state.activeReactions, event.data.reaction],
+                activeReactions: state.activeReactions.some((r) => r.id === incomingReaction.id)
+                  ? state.activeReactions
+                  : [...state.activeReactions, incomingReaction],
               }));
             }
           }

@@ -24,13 +24,14 @@ export const FloatingReactions: React.FC<FloatingReactionsProps> = ({
   return (
     <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
       <AnimatePresence>
-        {reactions.map((r) => {
+        {reactions.map((r, idx) => {
           const relPos = getRelativeSeatPosition(r.seat);
           const coords = seatCoords[relPos];
+          const itemKey = `${r.id || 'react'}_${idx}`;
 
           return (
             <motion.div
-              key={r.id}
+              key={itemKey}
               initial={{ opacity: 0, scale: 0.5, y: 0 }}
               animate={{ opacity: 1, scale: 1.4, y: -45 }}
               exit={{ opacity: 0, scale: 0.8, y: -70 }}
